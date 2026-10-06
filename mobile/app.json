@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Nexo",
+    "slug": "nexo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "nexo",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.nexo.couple"
+    },
+    "android": {
+      "package": "app.nexo.couple"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

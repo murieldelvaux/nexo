@@ -1,0 +1,55 @@
+- generic [ref=e142]:
+  - generic [ref=e146]:
+    - generic [ref=e147]:
+      - generic [ref=e148]:
+        - generic [ref=e149]:
+          - generic [ref=e150]: 🏠 Nossa Casa
+          - generic [ref=e151]: Olá, Lucas
+        - generic [ref=e152] [cursor=pointer]: 💬 WhatsApp Conectado
+      - generic [ref=e154]:
+        - generic [ref=e155]:
+          - generic [ref=e156]: Gastos da Casa
+          - generic [ref=e157]: R$ 0,00
+          - generic [ref=e158]: "Sua parte (50%): R$ 0,00"
+        - generic [ref=e159]:
+          - generic [ref=e160]: Meus Gastos
+          - generic [ref=e161]: R$ 0,00
+          - generic [ref=e162]: 🔒 Privado
+    - generic [ref=e163]:
+      - generic [ref=e164] [cursor=pointer]: Tudo
+      - generic [ref=e166] [cursor=pointer]: 🏠 Casal
+      - generic [ref=e168] [cursor=pointer]: 🔒 Privado
+    - generic [ref=e172]:
+      - generic [ref=e174]:
+        - generic [ref=e175]: Últimos Lançamentos
+        - generic [ref=e176] [cursor=pointer]: Ver todos
+      - generic [ref=e178]:
+        - generic [ref=e179]: Nenhum gasto neste filtro
+        - generic [ref=e180]: Mande uma mensagem no WhatsApp como 'Gastei 40 no mercado' ou registre manualmente.
+        - generic [ref=e181] [cursor=pointer]: Novo Gasto Manual
+  - tablist [ref=e184]:
+    - tab "📊 📊 Resumo" [selected] [ref=e186] [cursor=pointer]:
+      - generic [ref=e187]:
+        - generic [ref=e188]: 📊
+        - generic [ref=e190]: 📊
+      - generic [ref=e192]: Resumo
+    - tab "💸 💸 Gastos" [ref=e194] [cursor=pointer]:
+      - generic [ref=e195]:
+        - generic [ref=e196]: 💸
+        - generic [ref=e198]: 💸
+      - generic [ref=e200]: Gastos
+    - tab "🎯 🎯 Metas" [ref=e202] [cursor=pointer]:
+      - generic [ref=e203]:
+        - generic [ref=e204]: 🎯
+        - generic [ref=e206]: 🎯
+      - generic [ref=e208]: Metas
+    - tab "📌 📌 Rotina" [ref=e210] [cursor=pointer]:
+      - generic [ref=e211]:
+        - generic [ref=e212]: 📌
+        - generic [ref=e214]: 📌
+      - generic [ref=e216]: Rotina
+    - tab "⚙️ ⚙️ Config" [ref=e218] [cursor=pointer]:
+      - generic [ref=e219]:
+        - generic [ref=e220]: ⚙️
+        - generic [ref=e222]: ⚙️
+      - generic [ref=e224]: Config

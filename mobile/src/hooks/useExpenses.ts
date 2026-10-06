@@ -1,0 +1,65 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../services/api';
+import { queryKeys } from '../services/queryKeys';
+import {
+  ExpensesListResponseDto,
+  CreateExpenseDto,
+  ExpenseDto,
+} from '../../../packages/shared/src';
+
+export function useExpenses(filters: {
+  month?: string;
+  scope?: string;
+  category?: string;
+} = {}) {
+  const queryClient = useQueryClient();
+  const currentMonth = filters.month || new Date().toISOString().slice(0, 7);
+
+  const expensesQuery = useQuery({
+    queryKey: queryKeys.expenses.list({ ...filters, month: currentMonth }),
+    queryFn: async () => {
+      const { data } = await apiClient.get<ExpensesListResponseDto>('/expenses', {
+        params: { ...filters, month: currentMonth },
+      });
+      return data;
+    },
+  });
+
+  const createExpenseMutation = useMutation({
+    mutationFn: async (dto: CreateExpenseDto) => {
+      const { data } = await apiClient.post<ExpenseDto>('/expenses', dto);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all });
+    },
+  });
+
+  const deleteExpenseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.delete(`/expenses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all });
+    },
+  });
+
+  return {
+    expenses: expensesQuery.data?.items || [],
+    summary: expensesQuery.data?.summary || {
+      totalPrivate: 0,
+      totalShared: 0,
+      userShareOfShared: 0,
+      month: currentMonth,
+    },
+    isLoading: expensesQuery.isLoading,
+    isRefetching: expensesQuery.isRefetching,
+    isError: expensesQuery.isError,
+    error: expensesQuery.error,
+    refetch: expensesQuery.refetch,
+    createExpense: createExpenseMutation.mutateAsync,
+    isCreating: createExpenseMutation.isPending,
+    deleteExpense: deleteExpenseMutation.mutateAsync,
+    isDeleting: deleteExpenseMutation.isPending,
+  };
+}

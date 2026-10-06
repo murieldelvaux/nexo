@@ -1,0 +1,150 @@
+- generic [ref=e1]:
+  - generic [ref=e142]:
+    - generic [ref=e143]:
+      - generic:
+        - generic [aria-hidden]:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - generic: 🏠 Nossa Casa
+                    - generic: Olá, Lucas
+                  - generic: 💬 WhatsApp Conectado
+                - generic:
+                  - generic:
+                    - generic: Gastos da Casa
+                    - generic: R$ 250,50
+                    - generic: "Sua parte (50%): R$ 125,25"
+                  - generic:
+                    - generic: Meus Gastos
+                    - generic: R$ 0,00
+                    - generic: 🔒 Privado
+              - generic:
+                - generic: Tudo
+                - generic: 🏠 Casal
+                - generic: 🔒 Privado
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic: Últimos Lançamentos
+                        - generic: Ver todos
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Compras do mês no mercado
+                          - generic:
+                            - generic: 🛒 Mercado • 05 de out.
+                            - generic: 🏠 Casal (Lucas)
+                        - generic: R$ 250,50
+      - generic:
+        - generic [aria-hidden]:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Gastos & Extrato
+                  - generic: + Novo Gasto
+                - generic:
+                  - generic:
+                    - generic: Total Casal
+                    - generic: R$ 250,50
+                  - generic:
+                    - generic: Total Privado
+                    - generic: R$ 0,00
+              - generic:
+                - generic: Todos
+                - generic: 🏠 Compartilhados
+                - generic: 🔒 Privados
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: Compras do mês no mercado
+                          - generic: 🛒 Mercado
+                          - generic:
+                            - generic: 05 de out. • Por Lucas
+                            - generic: 🏠 Casal
+                        - generic: R$ 250,50
+      - generic:
+        - generic [aria-hidden]:
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Metas do Casal & Pessoais
+                  - generic: + Nova Meta
+                - generic: Planeje viagens, reservas de emergência e conquistas juntos.
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: Viagem para Buenos Aires
+                            - generic: 🏠 Casal
+                          - generic: 🗑️
+                        - generic:
+                          - generic: R$ 2.500,00
+                          - generic: de R$ 8.000,00
+                        - generic: 31% atingido
+                        - generic: + Guardar Valor
+      - generic [ref=e379]:
+        - generic [ref=e380]:
+          - generic [ref=e381]:
+            - generic [ref=e382]: Rotina & Lembretes
+            - generic [ref=e383] [cursor=pointer]: + Novo Item
+          - generic [ref=e385]: Contas a pagar, compras de mercado e tarefas do casal.
+        - generic [ref=e389]:
+          - generic [ref=e390]: Nenhum lembrete pendente
+          - generic [ref=e391]: Mande um WhatsApp como 'Lembrar de pagar condomínio' ou cadastre manualmente.
+          - generic [ref=e392] [cursor=pointer]: + Criar Lembrete
+    - tablist [ref=e184]:
+      - tab "📊 📊 Resumo" [ref=e186] [cursor=pointer]:
+        - generic [ref=e187]:
+          - generic [ref=e188]: 📊
+          - generic [ref=e190]: 📊
+        - generic [ref=e192]: Resumo
+      - tab "💸 💸 Gastos" [ref=e194] [cursor=pointer]:
+        - generic [ref=e195]:
+          - generic [ref=e196]: 💸
+          - generic [ref=e198]: 💸
+        - generic [ref=e200]: Gastos
+      - tab "🎯 🎯 Metas" [ref=e202] [cursor=pointer]:
+        - generic [ref=e203]:
+          - generic [ref=e204]: 🎯
+          - generic [ref=e206]: 🎯
+        - generic [ref=e208]: Metas
+      - tab "📌 📌 Rotina" [selected] [ref=e210] [cursor=pointer]:
+        - generic [ref=e211]:
+          - generic [ref=e212]: 📌
+          - generic [ref=e214]: 📌
+        - generic [ref=e216]: Rotina
+      - tab "⚙️ ⚙️ Config" [ref=e218] [cursor=pointer]:
+        - generic [ref=e219]:
+          - generic [ref=e220]: ⚙️
+          - generic [ref=e222]: ⚙️
+        - generic [ref=e224]: Config
+  - dialog [ref=e395]:
+    - generic [ref=e398]:
+      - generic [ref=e399]:
+        - generic [ref=e400]: Novo Lembrete
+        - generic [ref=e401] [cursor=pointer]: Fechar
+      - generic [ref=e404]:
+        - generic [ref=e405]:
+          - generic [ref=e406]: O que precisa ser feito ou lembrado?
+          - 'textbox "Ex: Pagar fatura da Enel dia 10" [active] [ref=e407]'
+        - generic [ref=e408]: Escopo do Lembrete
+        - generic [ref=e409]:
+          - generic [ref=e410] [cursor=pointer]:
+            - generic [ref=e411]: 🏠
+            - generic [ref=e412]: Lembrete da Casa
+          - generic [ref=e413] [cursor=pointer]:
+            - generic [ref=e414]: 🔒
+            - generic [ref=e415]: Lembrete Privado
+        - generic [ref=e416] [cursor=pointer]: Salvar Lembrete

@@ -1,0 +1,16 @@
+- generic [ref=e119]:
+  - generic [ref=e120]:
+    - generic [ref=e121]: 🏠
+    - generic [ref=e122]: Espaço do Casal
+    - generic [ref=e123]: Conecte sua conta com a do seu parceiro para compartilhar gastos, contas e metas.
+  - generic [ref=e124]:
+    - generic [ref=e125] [cursor=pointer]: Criar Novo Espaço
+    - generic [ref=e127] [cursor=pointer]: Entrar com Código
+  - generic [ref=e129]:
+    - generic [ref=e130]: Criar espaço para vocês dois
+    - generic [ref=e131]: Um código exclusivo será gerado para seu parceiro(a) entrar no mesmo espaço.
+    - generic [ref=e132]:
+      - generic [ref=e133]: Nome do Espaço
+      - 'textbox "Ex: Casa Muriel & Lucas" [ref=e134]': Nossa Casa
+    - generic [ref=e135] [cursor=pointer]: Criar Espaço do Casal
+  - generic [ref=e137] [cursor=pointer]: Configurar depois (usar individual)

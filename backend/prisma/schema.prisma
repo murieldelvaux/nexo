@@ -1,0 +1,136 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum RecordScope {
+  PRIVATE
+  SHARED
+}
+
+enum ExpenseCategory {
+  HOUSING
+  FOOD_MARKET
+  RESTAURANT
+  TRANSPORTATION
+  HEALTH
+  LEISURE
+  UTILITIES
+  SUBSCRIPTIONS
+  OTHER
+}
+
+enum GoalStatus {
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+}
+
+model User {
+  id           String      @id @default(uuid())
+  email        String      @unique
+  passwordHash String?
+  name         String
+  phoneNumber  String?     @unique
+  googleId     String?     @unique
+  avatarUrl    String?
+  resetToken   String?
+  resetExpires DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  householdId  String?
+  household    Household?  @relation(fields: [householdId], references: [id], onDelete: SetNull)
+
+  expenses     Expense[]
+  goals        Goal[]
+  tasks        Task[]
+
+  @@index([phoneNumber])
+}
+
+model Household {
+  id          String    @id @default(uuid())
+  name        String    @default("Nossa Casa")
+  inviteCode  String    @unique @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  members     User[]
+  expenses    Expense[]
+  goals       Goal[]
+  tasks       Task[]
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  description String
+  amount      Decimal         @db.Decimal(10, 2)
+  category    ExpenseCategory @default(OTHER)
+  date        DateTime        @default(now())
+  scope       RecordScope     @default(PRIVATE)
+  rawSource   String?
+
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  householdId String?
+  household   Household?      @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([userId, scope])
+  @@index([householdId, scope])
+  @@index([date])
+}
+
+model Goal {
+  id            String      @id @default(uuid())
+  title         String
+  targetAmount  Decimal     @db.Decimal(10, 2)
+  currentAmount Decimal     @default(0.00) @db.Decimal(10, 2)
+  targetDate    DateTime?
+  status        GoalStatus  @default(IN_PROGRESS)
+  scope         RecordScope @default(SHARED)
+
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  householdId   String?
+  household     Household?  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([householdId])
+}
+
+model Task {
+  id          String      @id @default(uuid())
+  title       String
+  dueDate     DateTime?
+  isCompleted Boolean     @default(false)
+  scope       RecordScope @default(SHARED)
+
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  householdId String?
+  household   Household?  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId, isCompleted])
+  @@index([householdId, isCompleted])
+}
+
+model ProcessedWebhookEvent {
+  id        String   @id
+  createdAt DateTime @default(now())
+}
