@@ -1,3 +1,6 @@
+# MCP files
+.playwright-mcp/
+
 # Dependencies
 node_modules/
 .pnp
