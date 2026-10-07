@@ -226,11 +226,6 @@ export default function GoalsScreen() {
               Economias e objetivos compartilhados
             </Text>
           </View>
-          <Button
-            title="+ Nova Meta"
-            onPress={handleOpenCreate}
-            style={styles.addButton}
-          />
         </View>
 
         {/* HERO CARD DE METAS ACUMULADAS */}
@@ -396,12 +391,6 @@ export default function GoalsScreen() {
                         setProgressModalVisible(true);
                       }}
                       style={{ flex: 1 }}
-                    />
-                    <Button
-                      title="Editar"
-                      variant="ghost"
-                      onPress={() => handleOpenEdit(item)}
-                      style={{ paddingHorizontal: 16 }}
                     />
                   </View>
                 </View>

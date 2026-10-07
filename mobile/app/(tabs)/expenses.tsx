@@ -280,11 +280,6 @@ export default function ExpensesScreen() {
                 : 'Período customizado'}
             </Text>
           </View>
-          <Button
-            title="+ Novo Gasto"
-            onPress={handleOpenCreate}
-            style={styles.addButton}
-          />
         </View>
 
         {/* HERO SUMMARY CARD */}
@@ -590,7 +585,7 @@ export default function ExpensesScreen() {
         activeOpacity={0.85}
       >
         <Text style={styles.fabIcon}>＋</Text>
-        <Text style={styles.fabText}>Novo Gastoo</Text>
+        <Text style={styles.fabText}>Novo Gasto</Text>
       </TouchableOpacity>
 
       {/* MODAL DE CALENDÁRIO RANGE */}
