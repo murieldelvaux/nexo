@@ -16,6 +16,7 @@ import { AppHeader } from '../../src/components/AppHeader';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { useCalendar } from '../../src/hooks/useCalendar';
 import { useGoogleCalendarAuth } from '../../src/hooks/useGoogleCalendarAuth';
+import { maskTime } from '../../src/utils/format';
 import { RecordScope, CalendarEventDto } from '../../../packages/shared/src';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -877,9 +878,11 @@ export default function CalendarScreen() {
                         },
                       ]}
                       value={newStartTime}
-                      onChangeText={setNewStartTime}
+                      onChangeText={(t) => setNewStartTime(maskTime(t))}
                       placeholder="09:00"
                       placeholderTextColor={theme.textMuted}
+                      keyboardType="numeric"
+                      maxLength={5}
                     />
                   </View>
                   <View style={{ width: 12 }} />
@@ -895,9 +898,11 @@ export default function CalendarScreen() {
                         },
                       ]}
                       value={newEndTime}
-                      onChangeText={setNewEndTime}
+                      onChangeText={(t) => setNewEndTime(maskTime(t))}
                       placeholder="10:00"
                       placeholderTextColor={theme.textMuted}
+                      keyboardType="numeric"
+                      maxLength={5}
                     />
                   </View>
                 </View>
@@ -1087,9 +1092,11 @@ export default function CalendarScreen() {
                         },
                       ]}
                       value={editStartTime}
-                      onChangeText={setEditStartTime}
+                      onChangeText={(t) => setEditStartTime(maskTime(t))}
                       placeholder="09:00"
                       placeholderTextColor={theme.textMuted}
+                      keyboardType="numeric"
+                      maxLength={5}
                     />
                   </View>
                   <View style={{ width: 12 }} />
@@ -1105,9 +1112,11 @@ export default function CalendarScreen() {
                         },
                       ]}
                       value={editEndTime}
-                      onChangeText={setEditEndTime}
+                      onChangeText={(t) => setEditEndTime(maskTime(t))}
                       placeholder="10:00"
                       placeholderTextColor={theme.textMuted}
+                      keyboardType="numeric"
+                      maxLength={5}
                     />
                   </View>
                 </View>

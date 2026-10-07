@@ -18,6 +18,7 @@ import { useTheme } from '../../src/theme/ThemeContext';
 import { AppHeader } from '../../src/components/AppHeader';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
+import { maskPhone, maskTime } from '../../src/utils/format';
 
 // Avatares rápidos disponíveis para escolha
 const AVATAR_PRESETS = [
@@ -48,10 +49,10 @@ export default function ProfileScreen() {
   // Estados de Convite e Telefone
   const [inviteCode, setInviteCode] = useState('');
   const [joinError, setJoinError] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
+  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ? maskPhone(user.phoneNumber) : '');
   const [phoneSaved, setPhoneSaved] = useState(false);
   // Estados de Notificação e Resumos no WhatsApp
-  const [dailyTime, setDailyTime] = useState(user?.dailySummaryTime || "06:00");
+  const [dailyTime, setDailyTime] = useState(user?.dailySummaryTime ? maskTime(user.dailySummaryTime) : '06:00');
   const [enableDaily, setEnableDaily] = useState(user?.enableDailySummary !== false);
   const [periodicType, setPeriodicType] = useState<string>(user?.periodicSummaryType || "none");
   const [isSavingNotifs, setIsSavingNotifs] = useState(false);
@@ -252,9 +253,9 @@ export default function ProfileScreen() {
             <Input
               label="Número do WhatsApp (com DDI e DDD)"
               placeholder="+55 11 99999-9999"
+              mask="phone"
               value={phoneNumber}
               onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
             />
             <Button
               title={phoneSaved ? '✓ WhatsApp Vinculado' : 'Salvar e Conectar'}
@@ -319,6 +320,7 @@ export default function ProfileScreen() {
                 <Input
                   label="Horário do envio matinal (Horário de Brasília)"
                   placeholder="06:00"
+                  mask="time"
                   value={dailyTime}
                   onChangeText={setDailyTime}
                 />

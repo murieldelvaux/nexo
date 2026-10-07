@@ -19,6 +19,7 @@ import { RecordScope, TaskDto } from '../../../packages/shared/src';
 import { useTasks } from '../../src/hooks/useTasks';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { AppHeader } from '../../src/components/AppHeader';
+import { maskDateTime } from '../../src/utils/format';
 
 const NexoLogo = require('../../assets/nexo-logo.png');
 
@@ -742,10 +743,12 @@ export default function TasksScreen() {
                     color: theme.textPrimary,
                   },
                 ]}
-                placeholder="Ex: 30/10/2026 ou 30/10/2026 15:00"
+                placeholder="DD/MM/AAAA ou DD/MM/AAAA HH:MM"
                 placeholderTextColor={theme.textMuted}
                 value={dueDateStr}
-                onChangeText={setDueDateStr}
+                onChangeText={(t) => setDueDateStr(maskDateTime(t))}
+                keyboardType="numeric"
+                maxLength={16}
               />
 
               {/* Presets Rápidos de Data (1 toque com o polegar) */}
@@ -927,8 +930,12 @@ export default function TasksScreen() {
                     color: theme.textPrimary,
                   },
                 ]}
+                placeholder="DD/MM/AAAA ou DD/MM/AAAA HH:MM"
+                placeholderTextColor={theme.textMuted}
                 value={dueDateStr}
-                onChangeText={setDueDateStr}
+                onChangeText={(t) => setDueDateStr(maskDateTime(t))}
+                keyboardType="numeric"
+                maxLength={16}
               />
 
               {/* Atalhos Rápidos */}

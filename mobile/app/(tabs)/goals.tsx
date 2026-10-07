@@ -18,7 +18,7 @@ import { EmptyState } from '../../src/components/EmptyState';
 import { useGoals } from '../../src/hooks/useGoals';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { AppHeader } from '../../src/components/AppHeader';
-import { formatCurrency, formatDate } from '../../src/utils/format';
+import { formatCurrency, formatDate, maskCurrency, unmaskCurrency, maskDate } from '../../src/utils/format';
 import { RecordScope, GoalDto } from '../../../packages/shared/src';
 
 export default function GoalsScreen() {
@@ -63,13 +63,13 @@ export default function GoalsScreen() {
   const handleOpenEdit = (goal: GoalDto) => {
     setEditingGoal(goal);
     setTitle(goal.title);
-    setTargetAmount(Number(goal.targetAmount).toFixed(2).replace('.', ','));
-    setCurrentAmount(Number(goal.currentAmount).toFixed(2).replace('.', ','));
+    setTargetAmount(maskCurrency(goal.targetAmount));
+    setCurrentAmount(maskCurrency(goal.currentAmount || 0));
     setScope(goal.scope);
     if (goal.targetDate) {
       const d = new Date(goal.targetDate);
       setTargetDate(
-        `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+        maskDate(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`)
       );
     } else {
       setTargetDate('');
@@ -89,8 +89,8 @@ export default function GoalsScreen() {
   };
 
   const handleCreate = async () => {
-    const target = parseFloat(targetAmount.replace(',', '.'));
-    const current = currentAmount ? parseFloat(currentAmount.replace(',', '.')) : 0;
+    const target = unmaskCurrency(targetAmount);
+    const current = currentAmount ? unmaskCurrency(currentAmount) : 0;
 
     if (!title.trim() || isNaN(target) || target <= 0) {
       Alert.alert('Atenção', 'Informe um título e um valor alvo válido.');
@@ -119,8 +119,8 @@ export default function GoalsScreen() {
 
   const handleUpdate = async () => {
     if (!editingGoal) return;
-    const target = parseFloat(targetAmount.replace(',', '.'));
-    const current = currentAmount ? parseFloat(currentAmount.replace(',', '.')) : 0;
+    const target = unmaskCurrency(targetAmount);
+    const current = currentAmount ? unmaskCurrency(currentAmount) : 0;
 
     if (!title.trim() || isNaN(target) || target <= 0) {
       Alert.alert('Atenção', 'Informe um título e um valor alvo válido.');
@@ -152,7 +152,7 @@ export default function GoalsScreen() {
   };
 
   const handleAddProgress = async () => {
-    const val = parseFloat(amountToAdd.replace(',', '.'));
+    const val = unmaskCurrency(amountToAdd);
     if (!selectedGoalId || isNaN(val) || val <= 0) {
       Alert.alert('Atenção', 'Informe um valor válido a adicionar.');
       return;
@@ -434,24 +434,25 @@ export default function GoalsScreen() {
               />
 
               <Input
-                label="Valor Alvo (R$)"
-                placeholder="Ex: 5.000,00"
-                keyboardType="decimal-pad"
+                label="Valor Alvo"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={targetAmount}
                 onChangeText={setTargetAmount}
               />
 
               <Input
-                label="Valor Já Guardado (R$)"
-                placeholder="0,00"
-                keyboardType="decimal-pad"
+                label="Valor Já Guardado"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={currentAmount}
                 onChangeText={setCurrentAmount}
               />
 
               <Input
                 label="Data Alvo (Opcional - DD/MM/AAAA)"
-                placeholder="Ex: 31/12/2026"
+                placeholder="DD/MM/AAAA"
+                mask="date"
                 value={targetDate}
                 onChangeText={setTargetDate}
               />
@@ -538,24 +539,25 @@ export default function GoalsScreen() {
               />
 
               <Input
-                label="Valor Alvo (R$)"
-                placeholder="Ex: 5.000,00"
-                keyboardType="decimal-pad"
+                label="Valor Alvo"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={targetAmount}
                 onChangeText={setTargetAmount}
               />
 
               <Input
-                label="Valor Já Guardado (R$)"
-                placeholder="0,00"
-                keyboardType="decimal-pad"
+                label="Valor Já Guardado"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={currentAmount}
                 onChangeText={setCurrentAmount}
               />
 
               <Input
                 label="Data Alvo (DD/MM/AAAA)"
-                placeholder="Ex: 31/12/2026"
+                placeholder="DD/MM/AAAA"
+                mask="date"
                 value={targetDate}
                 onChangeText={setTargetDate}
               />
@@ -645,9 +647,9 @@ export default function GoalsScreen() {
             </Text>
 
             <Input
-              label="Valor a Guardar (R$)"
-              placeholder="0,00"
-              keyboardType="decimal-pad"
+              label="Valor a Guardar"
+              placeholder="R$ 0,00"
+              mask="currency"
               value={amountToAdd}
               onChangeText={setAmountToAdd}
               autoFocus

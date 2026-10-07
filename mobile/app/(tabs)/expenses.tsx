@@ -19,7 +19,7 @@ import { CalendarRangePickerModal } from '../../src/components/CalendarRangePick
 import { useTheme } from '../../src/theme/ThemeContext';
 import { AppHeader } from '../../src/components/AppHeader';
 import { useExpenses } from '../../src/hooks/useExpenses';
-import { formatCurrency, formatDate, getCategoryLabel } from '../../src/utils/format';
+import { formatCurrency, formatDate, getCategoryLabel, maskCurrency, unmaskCurrency, maskDate } from '../../src/utils/format';
 import { ExpenseCategory, RecordScope, ExpenseDto } from '../../../packages/shared/src';
 
 const MONTH_NAMES = [
@@ -151,18 +151,18 @@ export default function ExpensesScreen() {
   const handleOpenEdit = (item: ExpenseDto) => {
     setEditingExpense(item);
     setDescription(item.description);
-    setAmount(Number(item.amount).toFixed(2).replace('.', ','));
+    setAmount(maskCurrency(item.amount));
     setCategory(item.category);
     setScope(item.scope);
     const d = new Date(item.date);
     const formattedD = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-    setCustomDate(formattedD);
+    setCustomDate(maskDate(formattedD));
     setEditModalVisible(true);
   };
 
   // Submit Create
   const handleCreate = async () => {
-    const numAmount = parseFloat(amount.replace(',', '.'));
+    const numAmount = unmaskCurrency(amount);
     if (!description.trim() || isNaN(numAmount) || numAmount <= 0) {
       Alert.alert('Atenção', 'Informe uma descrição e um valor válido maior que zero.');
       return;
@@ -191,7 +191,7 @@ export default function ExpensesScreen() {
   // Submit Edit
   const handleUpdate = async () => {
     if (!editingExpense) return;
-    const numAmount = parseFloat(amount.replace(',', '.'));
+    const numAmount = unmaskCurrency(amount);
     if (!description.trim() || isNaN(numAmount) || numAmount <= 0) {
       Alert.alert('Atenção', 'Informe uma descrição e um valor válido maior que zero.');
       return;
@@ -632,16 +632,17 @@ export default function ExpensesScreen() {
               />
 
               <Input
-                label="Valor (R$)"
-                placeholder="0,00"
-                keyboardType="decimal-pad"
+                label="Valor"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={amount}
                 onChangeText={setAmount}
               />
 
               <Input
                 label="Data (Opcional - DD/MM/AAAA)"
-                placeholder="Deixe em branco para hoje"
+                placeholder="DD/MM/AAAA (em branco para hoje)"
+                mask="date"
                 value={customDate}
                 onChangeText={setCustomDate}
               />
@@ -764,16 +765,17 @@ export default function ExpensesScreen() {
               />
 
               <Input
-                label="Valor (R$)"
-                placeholder="0,00"
-                keyboardType="decimal-pad"
+                label="Valor"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={amount}
                 onChangeText={setAmount}
               />
 
               <Input
                 label="Data (DD/MM/AAAA)"
-                placeholder="Ex: 06/10/2026"
+                placeholder="DD/MM/AAAA"
+                mask="date"
                 value={customDate}
                 onChangeText={setCustomDate}
               />
