@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
 import { GoalsService } from './goals.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { CreateGoalDto, UpdateGoalProgressDto } from '../../../../packages/shared/src';
+import { CreateGoalDto, UpdateGoalProgressDto, UpdateGoalDto } from '../../../../packages/shared/src';
 
 @Controller('goals')
 export class GoalsController {
@@ -27,6 +27,15 @@ export class GoalsController {
     @Body() dto: UpdateGoalProgressDto,
   ) {
     return this.goalsService.addProgress(id, userId, dto);
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @Body() dto: UpdateGoalDto,
+  ) {
+    return this.goalsService.update(id, userId, dto);
   }
 
   @Delete(':id')

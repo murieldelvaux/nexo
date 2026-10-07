@@ -137,6 +137,11 @@ export const UpdateGoalProgressDtoSchema = z.object({
 });
 export type UpdateGoalProgressDto = z.infer<typeof UpdateGoalProgressDtoSchema>;
 
+export const UpdateGoalDtoSchema = CreateGoalDtoSchema.partial().extend({
+  status: z.nativeEnum(GoalStatus).optional(),
+});
+export type UpdateGoalDto = z.infer<typeof UpdateGoalDtoSchema>;
+
 export interface GoalDto {
   id: string;
   title: string;
@@ -160,6 +165,11 @@ export const CreateTaskDtoSchema = z.object({
   scope: z.nativeEnum(RecordScope).default(RecordScope.SHARED),
 });
 export type CreateTaskDto = z.infer<typeof CreateTaskDtoSchema>;
+
+export const UpdateTaskDtoSchema = CreateTaskDtoSchema.partial().extend({
+  isCompleted: z.boolean().optional(),
+});
+export type UpdateTaskDto = z.infer<typeof UpdateTaskDtoSchema>;
 
 export interface TaskDto {
   id: string;
@@ -185,6 +195,7 @@ export interface ParsedWhatsAppResultDto {
     category?: ExpenseCategory;
     scope: RecordScope;
     dueDate?: string;
+    hasSpecificTime?: boolean;
     notes?: string;
   };
 }

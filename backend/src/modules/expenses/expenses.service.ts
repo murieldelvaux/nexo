@@ -48,7 +48,13 @@ export class ExpensesService {
 
   async findAll(
     userId: string,
-    filters?: { month?: string; scope?: string; category?: string },
+    filters?: {
+      month?: string;
+      startDate?: string;
+      endDate?: string;
+      scope?: string;
+      category?: string;
+    },
   ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -57,14 +63,25 @@ export class ExpensesService {
 
     const householdId = user?.householdId;
 
-    // Filtro de data por mês (ex: "2026-10")
+    // Filtro de data: por período explícito (startDate / endDate) ou por mês ("YYYY-MM")
     let dateFilter: any = undefined;
-    if (filters?.month) {
+    if (filters?.startDate || filters?.endDate) {
+      let gte: Date | undefined;
+      let lte: Date | undefined;
+
+      if (filters.startDate) {
+        gte = new Date(filters.startDate.includes('T') ? filters.startDate : filters.startDate + 'T00:00:00.000Z');
+      }
+      if (filters.endDate) {
+        lte = new Date(filters.endDate.includes('T') ? filters.endDate : filters.endDate + 'T23:59:59.999Z');
+      }
+      dateFilter = { ...(gte && { gte }), ...(lte && { lte }) };
+    } else if (filters?.month) {
       const [yearStr, monthStr] = filters.month.split('-');
       const year = parseInt(yearStr, 10);
       const month = parseInt(monthStr, 10);
-      const startDate = new Date(year, month - 1, 1);
-      const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+      const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+      const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
       dateFilter = { gte: startDate, lte: endDate };
     }
 
@@ -158,6 +175,41 @@ export class ExpensesService {
     }
 
     return this.mapExpense(expense);
+  }
+
+  async update(id: string, userId: string, dto: UpdateExpenseDto) {
+    await this.findOne(id, userId); // Valida existência e permissão
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { householdId: true },
+    });
+
+    let householdId: string | null | undefined = undefined;
+    if (dto.scope !== undefined) {
+      if (dto.scope === RecordScope.SHARED) {
+        householdId = user?.householdId || null;
+      } else {
+        householdId = null;
+      }
+    }
+
+    const updated = await this.prisma.expense.update({
+      where: { id },
+      data: {
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.amount !== undefined && { amount: dto.amount }),
+        ...(dto.category !== undefined && { category: dto.category as any }),
+        ...(dto.scope !== undefined && { scope: dto.scope as any }),
+        ...(householdId !== undefined && { householdId }),
+        ...(dto.date !== undefined && { date: new Date(dto.date) }),
+      },
+      include: {
+        user: { select: { id: true, name: true } },
+      },
+    });
+
+    return this.mapExpense(updated);
   }
 
   async delete(id: string, userId: string) {

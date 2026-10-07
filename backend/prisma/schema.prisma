@@ -111,11 +111,13 @@ model Goal {
 }
 
 model Task {
-  id          String      @id @default(uuid())
-  title       String
-  dueDate     DateTime?
-  isCompleted Boolean     @default(false)
-  scope       RecordScope @default(SHARED)
+  id              String      @id @default(uuid())
+  title           String
+  dueDate         DateTime?
+  hasSpecificTime Boolean     @default(false)
+  reminderSent    Boolean     @default(false)
+  isCompleted     Boolean     @default(false)
+  scope           RecordScope @default(SHARED)
 
   userId      String
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)

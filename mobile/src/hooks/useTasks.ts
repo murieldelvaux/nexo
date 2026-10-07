@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/api';
 import { queryKeys } from '../services/queryKeys';
-import { CreateTaskDto, TaskDto } from '../../../packages/shared/src';
+import { CreateTaskDto, UpdateTaskDto, TaskDto } from '../../../packages/shared/src';
 
 export function useTasks() {
   const queryClient = useQueryClient();
@@ -34,6 +34,16 @@ export function useTasks() {
     },
   });
 
+  const updateTaskMutation = useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateTaskDto }) => {
+      const { data } = await apiClient.patch<TaskDto>(`/tasks/${id}`, dto);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+    },
+  });
+
   const deleteTaskMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiClient.delete(`/tasks/${id}`);
@@ -51,6 +61,8 @@ export function useTasks() {
     refetch: tasksQuery.refetch,
     createTask: createTaskMutation.mutateAsync,
     isCreating: createTaskMutation.isPending,
+    updateTask: updateTaskMutation.mutateAsync,
+    isUpdating: updateTaskMutation.isPending,
     toggleTask: toggleTaskMutation.mutateAsync,
     deleteTask: deleteTaskMutation.mutateAsync,
   };
