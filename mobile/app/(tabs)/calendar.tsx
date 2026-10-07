@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Linking,
 } from 'react-native';
 import { AppHeader } from '../../src/components/AppHeader';
 import { useTheme } from '../../src/theme/ThemeContext';
@@ -208,6 +209,14 @@ export default function CalendarScreen() {
         setSyncStatusMsg(
           `Sincronizado! +${res.importedFromGoogle || 0} recebido(s), +${res.exportedToGoogle || 0} enviado(s).`
         );
+      } else if (res.needsActivation) {
+        const actUrl = res.activationUrl || "https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=163978455295";
+        setSyncStatusMsg("⚠️ Google Calendar API desativada no Google Cloud! Abrindo link para Ativar...");
+        if (Platform.OS === "web") {
+          window.open(actUrl, "_blank");
+        } else {
+          Linking.openURL(actUrl);
+        }
       } else if (res.needsConnect) {
         setSyncStatusMsg(res.message);
         if (Platform.OS === "web") {

@@ -8,6 +8,8 @@ import {
 export interface GoogleSyncResult {
   success: boolean;
   needsConnect?: boolean;
+  needsActivation?: boolean;
+  activationUrl?: string;
   message: string;
   importedFromGoogle?: number;
   exportedToGoogle?: number;

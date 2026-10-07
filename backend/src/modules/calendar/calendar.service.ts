@@ -315,20 +315,34 @@ export class CalendarService {
         exportedToGoogle: exportedCount,
       };
     } catch (err: any) {
-      this.logger.error(`Erro ao sincronizar com Google Calendar: ${err?.message || err}`);
+      const gError = err?.response?.data?.error;
+      const errorMsg = gError?.message || err?.message || '';
+      this.logger.error(`Erro ao sincronizar com Google Calendar: ${errorMsg}`);
+
+      if (errorMsg.includes("has not been used in project") || errorMsg.includes("disabled") || gError?.details?.[0]?.reason === "SERVICE_DISABLED") {
+        const activationUrl = "https://console.developers.google.com/apis/api/calendar-json.googleapis.com/overview?project=163978455295";
+        return {
+          success: false,
+          needsActivation: true,
+          activationUrl,
+          message: `A Google Calendar API está desativada no seu Google Cloud. Clique para ativar: ${activationUrl}`,
+          error: errorMsg,
+        };
+      }
+
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
         return {
           success: false,
           needsConnect: true,
           message: 'Permissão da agenda pendente ou expirada. Clique em "Conectar Google Agenda".',
-          error: err?.message,
+          error: errorMsg,
         };
       }
       return {
         success: false,
         message: 'Não foi possível sincronizar com o Google Agenda. Verifique as permissões de acesso.',
-        error: err?.message,
+        error: errorMsg,
       };
     }
   }
