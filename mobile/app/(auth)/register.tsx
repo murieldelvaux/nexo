@@ -17,6 +17,7 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { GoogleButton } from '../../src/components/GoogleButton';
 import { useGoogleSignIn } from '../../src/hooks/useGoogleSignIn';
 import { GoogleConfigModal } from '../../src/components/GoogleConfigModal';
+import { applyMask, MaskType } from '../../src/utils/masks';
 
 // ─── Campo premium reutilizável ───────────────────────────────────────────────
 interface FieldProps {
@@ -25,9 +26,11 @@ interface FieldProps {
   value: string;
   onChangeText: (t: string) => void;
   secureTextEntry?: boolean;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad';
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric';
   autoCapitalize?: 'none' | 'sentences' | 'words';
   hint?: string;
+  mask?: MaskType;
+  maxLength?: number;
 }
 
 function Field({
@@ -39,9 +42,27 @@ function Field({
   keyboardType = 'default',
   autoCapitalize = 'sentences',
   hint,
+  mask,
+  maxLength,
 }: FieldProps) {
   const [focused, setFocused] = useState(false);
   const [showPass, setShowPass] = useState(false);
+
+  const handleTextChange = (text: string) => {
+    if (mask) {
+      onChangeText(applyMask(text, mask));
+    } else {
+      onChangeText(text);
+    }
+  };
+
+  let resolvedKeyboardType = keyboardType;
+  let resolvedMaxLength = maxLength;
+
+  if (mask === 'phone') {
+    resolvedKeyboardType = keyboardType === 'default' ? 'phone-pad' : keyboardType;
+    resolvedMaxLength = maxLength || 19;
+  }
 
   return (
     <View style={{ marginBottom: 12 }}>
@@ -53,9 +74,10 @@ function Field({
             placeholder={placeholder}
             placeholderTextColor={Colors.textMuted}
             value={value}
-            onChangeText={onChangeText}
+            onChangeText={handleTextChange}
             secureTextEntry={secureTextEntry && !showPass}
-            keyboardType={keyboardType}
+            keyboardType={resolvedKeyboardType}
+            maxLength={resolvedMaxLength}
             autoCapitalize={autoCapitalize}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
@@ -280,7 +302,7 @@ export default function RegisterScreen() {
             <Field
               label="WhatsApp (com DDD)"
               placeholder="+55 11 99999-9999"
-              keyboardType="phone-pad"
+              mask="phone"
               autoCapitalize="none"
               value={phoneNumber}
               onChangeText={setPhoneNumber}

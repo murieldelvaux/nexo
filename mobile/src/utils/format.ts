@@ -41,3 +41,5 @@ export function getCategoryLabel(category: string): string {
   };
   return map[category] || '📦 Outros';
 }
+
+export * from './masks';

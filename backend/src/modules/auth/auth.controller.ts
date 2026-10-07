@@ -8,6 +8,7 @@ import {
   GoogleAuthDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  UpdateProfileDto,
 } from '../../../../packages/shared/src';
 
 @Controller('auth')
@@ -47,6 +48,14 @@ export class AuthController {
   @Get('me')
   async getProfile(@CurrentUser('userId') userId: string) {
     return this.authService.getProfile(userId);
+  }
+
+  @Put('profile')
+  async updateProfile(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.authService.updateProfile(userId, dto);
   }
 
   @Put('phone')

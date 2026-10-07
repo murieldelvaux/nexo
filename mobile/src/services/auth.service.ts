@@ -6,6 +6,7 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
   AuthResponseDto,
+  UpdateProfileDto,
 } from '../../../packages/shared/src';
 
 export const authService = {
@@ -39,6 +40,11 @@ export const authService = {
 
   async getMe() {
     const { data } = await apiClient.get('/auth/me');
+    return data;
+  },
+
+  async updateProfile(dto: UpdateProfileDto) {
+    const { data } = await apiClient.put('/auth/profile', dto);
     return data;
   },
 

@@ -1,0 +1,51 @@
+import { apiClient } from './api';
+import {
+  CalendarEventDto,
+  CreateCalendarEventDto,
+  UpdateCalendarEventDto,
+} from '../../../packages/shared/src';
+
+export interface GoogleSyncResult {
+  success: boolean;
+  needsConnect?: boolean;
+  needsActivation?: boolean;
+  activationUrl?: string;
+  message: string;
+  importedFromGoogle?: number;
+  exportedToGoogle?: number;
+  error?: string;
+}
+
+export const calendarService = {
+  async getAll(start?: string, end?: string): Promise<CalendarEventDto[]> {
+    const { data } = await apiClient.get<CalendarEventDto[]>('/calendar', {
+      params: { start, end },
+    });
+    return data;
+  },
+
+  async getById(id: string): Promise<CalendarEventDto> {
+    const { data } = await apiClient.get<CalendarEventDto>(`/calendar/${id}`);
+    return data;
+  },
+
+  async create(dto: CreateCalendarEventDto): Promise<CalendarEventDto> {
+    const { data } = await apiClient.post<CalendarEventDto>('/calendar', dto);
+    return data;
+  },
+
+  async update(id: string, dto: UpdateCalendarEventDto): Promise<CalendarEventDto> {
+    const { data } = await apiClient.put<CalendarEventDto>(`/calendar/${id}`, dto);
+    return data;
+  },
+
+  async delete(id: string): Promise<{ success: boolean }> {
+    const { data } = await apiClient.delete<{ success: boolean }>(`/calendar/${id}`);
+    return data;
+  },
+
+  async syncGoogle(): Promise<GoogleSyncResult> {
+    const { data } = await apiClient.post<GoogleSyncResult>('/calendar/sync-google');
+    return data;
+  },
+};

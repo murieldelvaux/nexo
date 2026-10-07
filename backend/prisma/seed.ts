@@ -1,4 +1,5 @@
-import { PrismaClient, RecordScope, ExpenseCategory, GoalStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { RecordScope, ExpenseCategory, GoalStatus } from '../../packages/shared/src';
 import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();

@@ -26,7 +26,7 @@ export class WhatsappService {
       }
 
       const messageType = message.type;
-      const supportedTypes = ['text', 'image', 'audio', 'voice'];
+      const supportedTypes = ['text', 'image', 'audio', 'voice', 'document'];
       if (!supportedTypes.includes(messageType)) {
         this.logger.log(`Ignoring unsupported message type: ${messageType}`);
         return;
@@ -50,10 +50,10 @@ export class WhatsappService {
 
       // 2. Identificar Usuário pelo Telefone
       const user = await this.findUserByPhone(message.from);
+      const replyToPhone = user?.phoneNumber || message.from;
 
       if (!user) {
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `Olá! 👋 Seu número (${fromNumber}) ainda não está vinculado a uma conta Nexo.\n\nAcesse o app e cadastre seu telefone em Perfil para começar a registrar gastos, metas e lembretes por aqui!`,
         );
         return;
@@ -75,8 +75,7 @@ export class WhatsappService {
 
         const media = await this.downloadMedia(mediaId);
         if (!media) {
-          await this.sendWhatsAppMessage(
-            message.from,
+          await this.sendWhatsAppMessage(replyToPhone,
             '⚠️ Não foi possível baixar a foto/comprovante. Por favor, tente enviar novamente.',
           );
           return;
@@ -92,8 +91,7 @@ export class WhatsappService {
 
         const media = await this.downloadMedia(mediaId);
         if (!media) {
-          await this.sendWhatsAppMessage(
-            message.from,
+          await this.sendWhatsAppMessage(replyToPhone,
             '⚠️ Não foi possível processar o áudio enviado. Por favor, tente falar mais perto do microfone ou enviar por texto.',
           );
           return;
@@ -101,6 +99,23 @@ export class WhatsappService {
 
         mediaSourceLabel = '🎙️ Áudio de Voz';
         parsed = await this.aiParser.parseMedia(media.buffer, media.mimeType || mimeType);
+      } else if (messageType === "document") {
+        const docObj = message.document;
+        const mediaId = docObj?.id;
+        const filename = docObj?.filename || "documento";
+        const mimeType = docObj?.mime_type || "application/octet-stream";
+        this.logger.log(`WhatsApp document received from ${fromNumber} (ID: ${mediaId}, filename: "${filename}")`);
+
+        const media = await this.downloadMedia(mediaId);
+        if (!media) {
+          await this.sendWhatsAppMessage(replyToPhone,
+            "⚠️ Não foi possível baixar o arquivo enviado. Por favor, tente enviar novamente.",
+          );
+          return;
+        }
+
+        mediaSourceLabel = `📄 Arquivo/Planilha (${filename})`;
+        parsed = await this.aiParser.parseMedia(media.buffer, mimeType, filename);
       } else {
         return;
       }
@@ -109,6 +124,7 @@ export class WhatsappService {
       // Regra de Ouro: Escopo é PRIVATE por padrão. Só é SHARED se o parser indicar SHARED E o usuário tiver householdId.
       const isShared = parsed.data.scope === RecordScope.SHARED && !!user.householdId;
       const scopeLabel = isShared ? '🏠 Compartilhado' : '🔒 Privado (Pessoal)';
+      
 
       if (parsed.intent === AIIntent.CREATE_EXPENSE && parsed.data.amount) {
         const expense = await this.prisma.expense.create({
@@ -126,8 +142,7 @@ export class WhatsappService {
         const formattedAmount = Number(expense.amount).toFixed(2).replace('.', ',');
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `✅ *Gasto Registrado!*${sourceNotice}\n\n📝 *Nome:* ${expense.description}\n💰 *Valor:* R$ ${formattedAmount}\n🏷️ *Escopo:* ${scopeLabel}\n\nJá sincronizado no seu app Nexo! 📲`,
         );
       } else if (parsed.intent === AIIntent.CREATE_GOAL && parsed.data.amount) {
@@ -147,11 +162,58 @@ export class WhatsappService {
         });
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `🎯 *Meta Cadastrada!*${sourceNotice}\n\n🏷️ *Meta:* ${goal.title}\n💰 *Alvo:* R$ ${formattedAmount}\n👥 *Escopo:* ${scopeLabel}\n\nJá atualizado no seu painel de Metas no app Nexo! 📲`,
         );
-      } else if (parsed.intent === AIIntent.CREATE_TASK) {
+            } else if (parsed.intent === AIIntent.CREATE_SHOPPING_ITEM) {
+        let itemsToCreate = parsed.data.items && parsed.data.items.length > 0
+          ? parsed.data.items
+          : [];
+
+        if (itemsToCreate.length === 0 && parsed.data.title) {
+          const raw = parsed.data.title
+            .replace(/^(?:comprar|adicionar\s+(?:na\s+)?lista\s*(?:de\s*(?:compras|mercado))?)\s*/i, "")
+            .trim();
+          const splitItems = raw
+            .split(/(?:,|\be\b|\n|•|-)+/i)
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+          itemsToCreate = (splitItems.length > 0 ? splitItems : [raw]).map((name) => ({
+            name: name.charAt(0).toUpperCase() + name.slice(1),
+            quantity: "1",
+            category: "Geral",
+          }));
+        }
+
+        // Se o usuário faz parte de um lar, lista de compras é compartilhada por padrão para o casal ver
+        const shoppingIsShared = !!user.householdId && parsed.data.scope !== RecordScope.PRIVATE;
+        const shoppingScope = shoppingIsShared ? RecordScope.SHARED : RecordScope.PRIVATE;
+        const shoppingScopeLabel = shoppingIsShared ? "🏠 Compartilhado (Casa)" : "🔒 Privado (Pessoal)";
+
+        const createdNames: string[] = [];
+        for (const it of itemsToCreate) {
+          if (!it.name || !it.name.trim()) continue;
+          await this.prisma.shoppingItem.create({
+            data: {
+              name: it.name.trim(),
+              quantity: it.quantity ? it.quantity.trim() : "1",
+              category: it.category ? it.category.trim() : "Geral",
+              scope: shoppingScope,
+              userId: user.id,
+              householdId: shoppingIsShared ? user.householdId : null,
+            },
+          });
+          createdNames.push(`• ${it.name}${it.quantity && it.quantity !== "1" ? ` (${it.quantity})` : ""}`);
+        }
+
+        const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
+        const itemsText = createdNames.slice(0, 15).join('\n') + (createdNames.length > 15 ? `\n...e mais ${createdNames.length - 15} itens` : '');
+
+        await this.sendWhatsAppMessage(replyToPhone,
+          `🛒 *Lista de Compras Atualizada!*${sourceNotice}\n\n${itemsText}\n\n🏷️ ${scopeLabel}\n\nJá sincronizado no app Nexo! Quando comprar, basta dar check no app! ✅📲`,
+        );
+} else if (parsed.intent === AIIntent.CREATE_TASK) {
         const dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
         const hasSpecificTime = !!parsed.data.hasSpecificTime;
 
@@ -180,13 +242,228 @@ export class WhatsappService {
         }
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `📌 *Lembrete Anotado!*${sourceNotice}\n\n"${task.title}"\n🏷️ ${scopeLabel}${timeNotice}\n\nVocê pode ver sua lista de rotina no app! 📲`,
         );
+      } else if (parsed.intent === AIIntent.QUERY_CALENDAR) {
+        const now = new Date();
+        const brDateStr = now.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+        const startOfDay = new Date(`${brDateStr}T00:00:00.000-03:00`);
+        const endOfDay = new Date(`${brDateStr}T23:59:59.999-03:00`);
+
+        const events = await this.prisma.calendarEvent.findMany({
+          where: {
+            OR: [
+              { userId: user.id },
+              ...(user.householdId ? [{ householdId: user.householdId, scope: RecordScope.SHARED }] : []),
+            ],
+            startDate: {
+              gte: startOfDay,
+              lte: endOfDay,
+            },
+          },
+          orderBy: { startDate: "asc" },
+        });
+
+        const todayFormatted = now.toLocaleDateString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+          weekday: "long",
+          day: "2-digit",
+          month: "2-digit",
+        });
+
+        if (events.length === 0) {
+          await this.sendWhatsAppMessage(replyToPhone,
+            `📅 *Sua Agenda para Hoje (${todayFormatted}):*\n\n☕ Você não tem nenhum compromisso agendado para hoje! Aproveite o dia ou diga *"agendar <data> às <hora> - <evento>"* para marcar algo novo.`,
+          );
+          return;
+        }
+
+        const lines = events
+          .map((ev: any) => {
+            const timeStr = ev.isAllDay
+              ? "Dia inteiro"
+              : ev.startDate.toLocaleTimeString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+            const loc = ev.location ? ` (📍 ${ev.location})` : "";
+            const scopeTag = ev.scope === RecordScope.SHARED ? " 🏠" : "";
+            return `• ⏰ *${timeStr}* - *${ev.title}*${loc}${scopeTag}`;
+          })
+          .join("\n");
+
+        await this.sendWhatsAppMessage(replyToPhone,
+          `📅 *Sua Agenda para Hoje (${todayFormatted}):*\n\n${lines}\n\n_Total: ${events.length} compromisso(s)._`,
+        );
+        return;
+      } else if (parsed.intent === AIIntent.QUERY_TASKS) {
+        const tasks = await this.prisma.task.findMany({
+          where: {
+            OR: [
+              { userId: user.id },
+              ...(user.householdId ? [{ householdId: user.householdId, scope: RecordScope.SHARED }] : []),
+            ],
+            isCompleted: false,
+          },
+          orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+          take: 20,
+        });
+
+        if (tasks.length === 0) {
+          await this.sendWhatsAppMessage(replyToPhone,
+            `📋 *Seus Lembretes & Tarefas:*\n\n🎉 Você não tem nenhum lembrete ou tarefa pendente no momento! Tudo em dia!\n\n_Para adicionar um lembrete: "lembrar de pagar conta de luz amanhã às 10h"_`,
+          );
+          return;
+        }
+
+        const lines = tasks
+          .map((t: any) => {
+            let dueStr = "";
+            if (t.dueDate) {
+              dueStr = ` (📅 ${t.dueDate.toLocaleDateString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+                day: "2-digit",
+                month: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              })})`;
+            }
+            const scopeTag = t.scope === RecordScope.SHARED ? " 🏠" : "";
+            return `• ▫️ *${t.title}*${dueStr}${scopeTag}`;
+          })
+          .join("\n");
+
+        await this.sendWhatsAppMessage(replyToPhone,
+          `📋 *Seus Lembretes & Tarefas Pendentes (${tasks.length}):*\n\n${lines}\n\n_Você também pode marcá-los como concluídos no app Nexo._`,
+        );
+        return;
+      } else if (parsed.intent === AIIntent.QUERY_SHOPPING_LIST) {
+        const items = await this.prisma.shoppingItem.findMany({
+          where: {
+            OR: [
+              { userId: user.id },
+              ...(user.householdId ? [{ householdId: user.householdId, scope: RecordScope.SHARED }] : []),
+            ],
+            isCompleted: false,
+          },
+          orderBy: [{ category: "asc" }, { createdAt: "desc" }],
+        });
+
+        if (items.length === 0) {
+          await this.sendWhatsAppMessage(replyToPhone,
+            `🛒 *Sua Lista de Compras:*\n\n✨ Sua lista de compras está vazia!\n\n_Para adicionar itens, basta mandar mensagem ou áudio: "comprar arroz, feijão e ovos" ou enviar uma foto/planilha._`,
+          );
+          return;
+        }
+
+        const lines = items
+          .map((it: any) => {
+            const qty = it.quantity && it.quantity !== "1" ? ` (${it.quantity})` : "";
+            const cat = it.category && it.category !== "Geral" ? ` _[${it.category}]_` : "";
+            return `• ▫️ *${it.name}*${qty}${cat}`;
+          })
+          .join("\n");
+
+        await this.sendWhatsAppMessage(replyToPhone,
+          `🛒 *Sua Lista de Compras (${items.length} itens pendentes):*\n\n${lines}\n\n_Para adicionar mais itens, envie: "comprar <item>" ou mande um áudio._`,
+        );
+        return;
+      } else if (parsed.intent === AIIntent.CREATE_EVENT) {
+        const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : new Date();
+        const endDate = parsed.data.endDate
+          ? new Date(parsed.data.endDate)
+          : new Date(startDate.getTime() + 60 * 60 * 1000);
+        const isAllDay = !!parsed.data.isAllDay;
+
+        let googleEventId: string | null = null;
+        let syncedWithGoogle = false;
+
+        if (user.googleAccessToken) {
+          try {
+            if (user.googleAccessToken.startsWith("dev_token_") || user.googleAccessToken.startsWith("AIzaSy")) {
+              googleEventId = "dev_event_" + Date.now();
+              syncedWithGoogle = true;
+            } else {
+              const body: any = {
+                summary: parsed.data.title,
+                description: parsed.data.notes || "",
+                location: parsed.data.location || "",
+              };
+              if (isAllDay) {
+                const dateStr = startDate.toISOString().slice(0, 10);
+                body.start = { date: dateStr };
+                body.end = { date: (endDate || startDate).toISOString().slice(0, 10) };
+              } else {
+                body.start = { dateTime: startDate.toISOString() };
+                body.end = { dateTime: endDate.toISOString() };
+              }
+
+              const gRes = await axios.post(
+                "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+                body,
+                {
+                  headers: {
+                    Authorization: `Bearer ${user.googleAccessToken}`,
+                    "Content-Type": "application/json",
+                  },
+                },
+              );
+              if (gRes.data?.id) {
+                googleEventId = gRes.data.id;
+                syncedWithGoogle = true;
+              }
+            }
+          } catch (e: any) {
+            this.logger.warn(`WhatsApp event: falha ao sincronizar com Google Agenda: ${e?.message}`);
+          }
+        }
+
+        const calendarEvent = await this.prisma.calendarEvent.create({
+          data: {
+            title: parsed.data.title,
+            description: parsed.data.notes || null,
+            startDate,
+            endDate,
+            isAllDay,
+            location: parsed.data.location || null,
+            scope: isShared ? RecordScope.SHARED : RecordScope.PRIVATE,
+            userId: user.id,
+            householdId: isShared ? user.householdId : null,
+            googleEventId,
+          },
+        });
+
+        const formattedDate = startDate.toLocaleDateString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+        const timeNotice = isAllDay
+          ? "Dia inteiro"
+          : startDate.toLocaleTimeString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+        const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : "";
+        const syncNotice = syncedWithGoogle
+          ? "\n🔄 *Sincronizado:* Adicionado automaticamente ao seu Google Agenda! 🗓️"
+          : "";
+
+        const locationNotice = calendarEvent.location
+          ? `\n📍 *Local:* ${calendarEvent.location}`
+          : "";
+
+        await this.sendWhatsAppMessage(replyToPhone,
+          `📅 *Compromisso Agendado!*${sourceNotice}\n\n👉 *${calendarEvent.title}*\n🗓️ *Data:* ${formattedDate}\n⏰ *Horário:* ${timeNotice}${locationNotice}\n🏷️ *Escopo:* ${scopeLabel}${syncNotice}\n\nVocê pode visualizá-lo e editá-lo no app Nexo! 📲`,
+        );
       } else {
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `🤔 Não consegui identificar os dados com clareza.\n\nExperimente:\n• Enviar foto de um comprovante ou cupom fiscal\n• Gravar um áudio dizendo: "Gastei 50 no mercado hoje"\n• Gravar um áudio: "Guardar 5000 na meta viagem"\n• Digitar: "Almoço 35"`,
         );
       }
@@ -244,7 +521,7 @@ export class WhatsappService {
     });
 
     return (
-      users.find((u) => {
+      users.find((u: any) => {
         if (!u.phoneNumber) return false;
         const uDigits = u.phoneNumber.replace(/\D/g, '');
         const uWithoutCountry = uDigits.startsWith('55') ? uDigits.slice(2) : uDigits;
@@ -280,7 +557,15 @@ export class WhatsappService {
   async sendWhatsAppMessage(toPhone: string, text: string) {
     const accessToken = this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
     const phoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
-    const cleanPhone = (toPhone || '').replace(/\D/g, '');
+    let cleanPhone = (toPhone || '').replace(/\D/g, '');
+
+    // Normalização para celular brasileiro: Meta Cloud API exige o 9º dígito como destinatário (ex: 5535997108453)
+    if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
+      const ddd = parseInt(cleanPhone.slice(2, 4), 10);
+      if (ddd >= 11) {
+        cleanPhone = cleanPhone.slice(0, 4) + '9' + cleanPhone.slice(4);
+      }
+    }
 
     if (!accessToken || !phoneNumberId || accessToken === 'your_meta_permanent_access_token_here') {
       this.logger.warn(
@@ -306,7 +591,38 @@ export class WhatsappService {
         },
       );
     } catch (err: any) {
-      this.logger.error(`Failed to send WhatsApp message via Meta API: ${err?.response?.data || err.message}`);
+      const errData = err?.response?.data ? JSON.stringify(err.response.data) : err.message;
+      this.logger.error(`Failed to send WhatsApp message via Meta API (${cleanPhone}): ${errData}`);
+
+      // Fallback: se falhar e tiver formato alternativo com/sem 9, tenta alternativa
+      const altPhone =
+        cleanPhone.startsWith('55') && cleanPhone.length === 13 && cleanPhone[4] === '9'
+          ? cleanPhone.slice(0, 4) + cleanPhone.slice(5)
+          : null;
+
+      if (altPhone) {
+        try {
+          await axios.post(
+            `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+            {
+              messaging_product: 'whatsapp',
+              to: altPhone,
+              type: 'text',
+              text: { body: text },
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            },
+          );
+          this.logger.log(`WhatsApp message successfully delivered via fallback phone: ${altPhone}`);
+        } catch (retryErr: any) {
+          const retryData = retryErr?.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
+          this.logger.error(`Fallback attempt also failed (${altPhone}): ${retryData}`);
+        }
+      }
     }
   }
 }

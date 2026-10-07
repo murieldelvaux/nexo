@@ -1,24 +1,28 @@
 import React, { useState } from 'react';
-import { Platform, View,
+import {
+  Platform,
+  View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   Modal,
   SafeAreaView,
   ScrollView,
-  Alert, } from 'react-native';
-import { Colors } from '../../src/theme/colors';
+  Alert,
+} from 'react-native';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { ScopeBadge } from '../../src/components/ScopeBadge';
 import { LoadingState } from '../../src/components/LoadingState';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useGoals } from '../../src/hooks/useGoals';
-import { formatCurrency, formatDate } from '../../src/utils/format';
-import { RecordScope, GoalStatus, GoalDto } from '../../../packages/shared/src';
+import { useTheme } from '../../src/theme/ThemeContext';
+import { AppHeader } from '../../src/components/AppHeader';
+import { formatCurrency, formatDate, maskCurrency, unmaskCurrency, maskDate } from '../../src/utils/format';
+import { RecordScope, GoalDto } from '../../../packages/shared/src';
 
 export default function GoalsScreen() {
+  const { theme, isDark } = useTheme();
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [progressModalVisible, setProgressModalVisible] = useState(false);
@@ -59,13 +63,13 @@ export default function GoalsScreen() {
   const handleOpenEdit = (goal: GoalDto) => {
     setEditingGoal(goal);
     setTitle(goal.title);
-    setTargetAmount(Number(goal.targetAmount).toFixed(2).replace('.', ','));
-    setCurrentAmount(Number(goal.currentAmount).toFixed(2).replace('.', ','));
+    setTargetAmount(maskCurrency(goal.targetAmount));
+    setCurrentAmount(maskCurrency(goal.currentAmount || 0));
     setScope(goal.scope);
     if (goal.targetDate) {
       const d = new Date(goal.targetDate);
       setTargetDate(
-        `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+        maskDate(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`)
       );
     } else {
       setTargetDate('');
@@ -85,8 +89,8 @@ export default function GoalsScreen() {
   };
 
   const handleCreate = async () => {
-    const target = parseFloat(targetAmount.replace(',', '.'));
-    const current = currentAmount ? parseFloat(currentAmount.replace(',', '.')) : 0;
+    const target = unmaskCurrency(targetAmount);
+    const current = currentAmount ? unmaskCurrency(currentAmount) : 0;
 
     if (!title.trim() || isNaN(target) || target <= 0) {
       Alert.alert('Atenção', 'Informe um título e um valor alvo válido.');
@@ -115,8 +119,8 @@ export default function GoalsScreen() {
 
   const handleUpdate = async () => {
     if (!editingGoal) return;
-    const target = parseFloat(targetAmount.replace(',', '.'));
-    const current = currentAmount ? parseFloat(currentAmount.replace(',', '.')) : 0;
+    const target = unmaskCurrency(targetAmount);
+    const current = currentAmount ? unmaskCurrency(currentAmount) : 0;
 
     if (!title.trim() || isNaN(target) || target <= 0) {
       Alert.alert('Atenção', 'Informe um título e um valor alvo válido.');
@@ -148,7 +152,7 @@ export default function GoalsScreen() {
   };
 
   const handleAddProgress = async () => {
-    const val = parseFloat(amountToAdd.replace(',', '.'));
+    const val = unmaskCurrency(amountToAdd);
     if (!selectedGoalId || isNaN(val) || val <= 0) {
       Alert.alert('Atenção', 'Informe um valor válido a adicionar.');
       return;
@@ -196,7 +200,7 @@ export default function GoalsScreen() {
               setEditingGoal(null);
             }
           } catch {
-            Alert.alert('Erro', 'Não foi possível excluir a meta.');
+            Alert.alert('Erro', 'Não foi possível excluir o meta.');
           }
         },
       },
@@ -205,162 +209,273 @@ export default function GoalsScreen() {
 
   if (isLoading) return <LoadingState />;
 
+  const totalSaved = goals.reduce((acc, g) => acc + Number(g.currentAmount || 0), 0);
+  const totalTarget = goals.reduce((acc, g) => acc + Number(g.targetAmount || 0), 0);
+  const overallPercent = totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0;
+
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <AppHeader title="Nexo" subtitle="Metas Financeiras" />
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* TÍTULO & BOTÃO NOVA META */}
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.title}>Metas Financeiras</Text>
-            <Text style={styles.subtitle}>Economias e objetivos compartilhados</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>Metas Financeiras</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              Economias e objetivos compartilhados
+            </Text>
           </View>
-          <Button
-            title="+ Nova Meta"
-            onPress={handleOpenCreate}
-            style={styles.addButton}
-          />
         </View>
-      </View>
 
-      {/* Lista de Metas */}
-      <FlatList
-        data={goals}
-        keyExtractor={(item) => item.id}
-        refreshing={isRefetching}
-        onRefresh={refetch}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <EmptyState
-            title="Nenhuma meta cadastrada"
-            description="Crie metas para viagens, reservas de emergência ou reformas da casa."
-            actionTitle="+ Criar Primeira Meta"
-            onAction={handleOpenCreate}
-          />
-        }
-        renderItem={({ item }) => {
-          const progressPercent = Math.min(
-            100,
-            Math.round((Number(item.currentAmount) / Number(item.targetAmount)) * 100) || 0
-          );
-
-          return (
-            <View style={styles.goalCard}>
-              <View style={styles.goalHeader}>
-                <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text style={styles.goalTitle}>{item.title}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <ScopeBadge scope={item.scope} />
-                    {item.targetDate && (
-                      <Text style={styles.dateBadge}>Alvo: {formatDate(item.targetDate)}</Text>
-                    )}
-                  </View>
-                </View>
-
-                <View style={styles.headerActions}>
-                  <TouchableOpacity
-                    style={styles.iconBtn}
-                    onPress={() => handleOpenEdit(item)}
-                  >
-                    <Text style={{ fontSize: 15 }}>✏️</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.iconBtn}
-                    onPress={() => handleDelete(item.id, item.title)}
-                  >
-                    <Text style={{ fontSize: 15 }}>🗑️</Text>
-                  </TouchableOpacity>
-                </View>
+        {/* HERO CARD DE METAS ACUMULADAS */}
+        {goals.length > 0 && (
+          <View
+            style={[
+              styles.summaryHeroCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+              },
+              theme.cardShadow,
+            ]}
+          >
+            <View style={styles.summaryHeroTop}>
+              <View>
+                <Text style={[styles.summaryHeroLabel, { color: theme.textSecondary }]}>
+                  Total Guardado
+                </Text>
+                <Text style={[styles.summaryHeroValue, { color: theme.textPrimary }]}>
+                  {formatCurrency(totalSaved)}
+                </Text>
               </View>
-
-              <View style={styles.amountRow}>
-                <Text style={styles.currentVal}>{formatCurrency(item.currentAmount)}</Text>
-                <Text style={styles.targetVal}>de {formatCurrency(item.targetAmount)}</Text>
-              </View>
-
-              {/* Progress Bar */}
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
-              </View>
-              <Text style={styles.progressText}>{progressPercent}% atingido</Text>
-
-              <View style={styles.cardBottomRow}>
-                <Button
-                  title="+ Guardar Valor"
-                  variant="secondary"
-                  onPress={() => {
-                    setSelectedGoalId(item.id);
-                    setProgressModalVisible(true);
-                  }}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  title="Editar"
-                  variant="ghost"
-                  onPress={() => handleOpenEdit(item)}
-                  style={{ paddingHorizontal: 16 }}
-                />
+              <View style={[styles.percentBadge, { backgroundColor: theme.primaryLight }]}>
+                <Text style={[styles.percentBadgeText, { color: theme.primary }]}>
+                  {overallPercent}% da meta global
+                </Text>
               </View>
             </View>
-          );
-        }}
-      />
 
-      {/* Modal Criar Meta */}
+            {/* BARRA DE PROGRESSO GLOBAL */}
+            <View style={[styles.progressBarBg, { backgroundColor: theme.surfaceSubtle }]}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: `${overallPercent}%`,
+                    backgroundColor: overallPercent >= 100 ? theme.success : theme.primary,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={[styles.targetGlobalText, { color: theme.textMuted }]}>
+              Objetivo total: {formatCurrency(totalTarget)}
+            </Text>
+          </View>
+        )}
+
+        {/* LISTAGEM DE METAS */}
+        <View style={styles.listSection}>
+          <Text style={[styles.listSectionTitle, { color: theme.textPrimary }]}>
+            Suas Metas ({goals.length})
+          </Text>
+
+          {goals.length === 0 ? (
+            <EmptyState
+              title="Nenhuma meta cadastrada"
+              description="Crie metas para viagens, reservas de emergência ou reformas da casa."
+              actionTitle="+ Criar Primeira Meta"
+              onAction={handleOpenCreate}
+            />
+          ) : (
+            goals.map((item) => {
+              const progressPercent = Math.min(
+                100,
+                Math.round((Number(item.currentAmount) / Number(item.targetAmount)) * 100) || 0
+              );
+              const isCompleted = progressPercent >= 100;
+
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.goalCard,
+                    {
+                      backgroundColor: theme.surface,
+                      borderColor: theme.border,
+                    },
+                    theme.cardShadow,
+                  ]}
+                >
+                  <View style={styles.goalHeader}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                      <Text style={[styles.goalTitle, { color: theme.textPrimary }]}>
+                        {item.title}
+                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                        <ScopeBadge scope={item.scope} />
+                        {item.targetDate && (
+                          <Text style={[styles.dateBadge, { color: theme.textMuted }]}>
+                            Alvo: {formatDate(item.targetDate)}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    <View style={styles.headerActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.iconBtn,
+                          { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
+                        ]}
+                        onPress={() => handleOpenEdit(item)}
+                      >
+                        <Text style={{ fontSize: 13 }}>✏️</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.iconBtn,
+                          { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
+                        ]}
+                        onPress={() => handleDelete(item.id, item.title)}
+                      >
+                        <Text style={{ fontSize: 13 }}>🗑️</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.amountRow}>
+                    <Text
+                      style={[
+                        styles.currentVal,
+                        { color: isCompleted ? theme.success : theme.primary },
+                      ]}
+                    >
+                      {formatCurrency(item.currentAmount)}
+                    </Text>
+                    <Text style={[styles.targetVal, { color: theme.textSecondary }]}>
+                      de {formatCurrency(item.targetAmount)}
+                    </Text>
+                  </View>
+
+                  {/* BARRA DE PROGRESSO */}
+                  <View style={[styles.progressBarBg, { backgroundColor: theme.surfaceSubtle }]}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        {
+                          width: `${progressPercent}%`,
+                          backgroundColor: isCompleted ? theme.success : theme.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.progressRow}>
+                    <Text style={[styles.progressText, { color: theme.textMuted }]}>
+                      {progressPercent}% atingido
+                    </Text>
+                    {isCompleted && (
+                      <Text style={[styles.completedBadge, { color: theme.success }]}>
+                        ✓ Concluída!
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.cardBottomRow}>
+                    <Button
+                      title="+ Guardar Valor"
+                      variant="secondary"
+                      onPress={() => {
+                        setSelectedGoalId(item.id);
+                        setProgressModalVisible(true);
+                      }}
+                      style={{ flex: 1 }}
+                    />
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+      </ScrollView>
+
+      {/* FAB FLUTUANTE NA ZONA DO POLEGAR */}
+      <TouchableOpacity
+        style={[styles.fabButton, { backgroundColor: theme.primary }, theme.fabShadow]}
+        onPress={handleOpenCreate}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.fabIcon}>＋</Text>
+        <Text style={styles.fabText}>Nova Meta</Text>
+      </TouchableOpacity>
+
+      {/* MODAL CRIAR META */}
       <Modal visible={createModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <SafeAreaView style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Nova Meta</Text>
-              <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
-                <Text style={styles.closeText}>Fechar</Text>
+          <SafeAreaView style={[styles.modalSheet, { backgroundColor: theme.surface }]}>
+            <View style={styles.sheetHandleContainer}>
+              <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+            </View>
+
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Nova Meta</Text>
+              <TouchableOpacity onPress={() => setCreateModalVisible(false)} style={{ padding: 4 }}>
+                <Text style={[styles.closeText, { color: theme.primary }]}>Fechar</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView style={{ padding: 20 }}>
               <Input
                 label="Título da Meta"
-                placeholder="Ex: Viagem para Itália"
+                placeholder="Ex: Viagem para a praia"
                 value={title}
                 onChangeText={setTitle}
               />
 
               <Input
-                label="Valor Alvo (R$)"
-                placeholder="Ex: 10.000,00"
-                keyboardType="decimal-pad"
+                label="Valor Alvo"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={targetAmount}
                 onChangeText={setTargetAmount}
               />
 
               <Input
-                label="Valor Já Guardado (R$)"
-                placeholder="0,00"
-                keyboardType="decimal-pad"
+                label="Valor Já Guardado"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={currentAmount}
                 onChangeText={setCurrentAmount}
               />
 
               <Input
                 label="Data Alvo (Opcional - DD/MM/AAAA)"
-                placeholder="Ex: 31/12/2026"
+                placeholder="DD/MM/AAAA"
+                mask="date"
                 value={targetDate}
                 onChangeText={setTargetDate}
               />
 
-              <Text style={styles.fieldLabel}>Escopo da Meta</Text>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                Escopo da Meta
+              </Text>
               <View style={styles.scopeSelector}>
                 <TouchableOpacity
                   style={[
                     styles.scopeOption,
-                    scope === RecordScope.SHARED && styles.scopeOptionActive,
+                    {
+                      backgroundColor: scope === RecordScope.SHARED ? theme.primaryLight : theme.inputBg,
+                      borderColor: scope === RecordScope.SHARED ? theme.primary : theme.inputBorder,
+                    },
                   ]}
                   onPress={() => setScope(RecordScope.SHARED)}
                 >
-                  <Text style={styles.scopeEmoji}>🏠</Text>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🏠</Text>
                   <Text
                     style={[
                       styles.scopeOptionText,
-                      scope === RecordScope.SHARED && styles.scopeOptionTextActive,
+                      { color: scope === RecordScope.SHARED ? theme.primary : theme.textPrimary },
                     ]}
                   >
                     Meta Compartilhada
@@ -370,15 +485,18 @@ export default function GoalsScreen() {
                 <TouchableOpacity
                   style={[
                     styles.scopeOption,
-                    scope === RecordScope.PRIVATE && styles.scopeOptionActive,
+                    {
+                      backgroundColor: scope === RecordScope.PRIVATE ? theme.primaryLight : theme.inputBg,
+                      borderColor: scope === RecordScope.PRIVATE ? theme.primary : theme.inputBorder,
+                    },
                   ]}
                   onPress={() => setScope(RecordScope.PRIVATE)}
                 >
-                  <Text style={styles.scopeEmoji}>🔒</Text>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🔒</Text>
                   <Text
                     style={[
                       styles.scopeOptionText,
-                      scope === RecordScope.PRIVATE && styles.scopeOptionTextActive,
+                      { color: scope === RecordScope.PRIVATE ? theme.primary : theme.textPrimary },
                     ]}
                   >
                     Meta Individual
@@ -397,62 +515,72 @@ export default function GoalsScreen() {
         </View>
       </Modal>
 
-      {/* Modal Editar Meta */}
+      {/* MODAL EDITAR META */}
       <Modal visible={editModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <SafeAreaView style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar Meta</Text>
-              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                <Text style={styles.closeText}>Fechar</Text>
+          <SafeAreaView style={[styles.modalSheet, { backgroundColor: theme.surface }]}>
+            <View style={styles.sheetHandleContainer}>
+              <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+            </View>
+
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Editar Meta</Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)} style={{ padding: 4 }}>
+                <Text style={[styles.closeText, { color: theme.primary }]}>Fechar</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView style={{ padding: 20 }}>
               <Input
                 label="Título da Meta"
-                placeholder="Ex: Viagem para Itália"
+                placeholder="Ex: Viagem para a praia"
                 value={title}
                 onChangeText={setTitle}
               />
 
               <Input
-                label="Valor Alvo (R$)"
-                placeholder="Ex: 10.000,00"
-                keyboardType="decimal-pad"
+                label="Valor Alvo"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={targetAmount}
                 onChangeText={setTargetAmount}
               />
 
               <Input
-                label="Valor Já Guardado (R$)"
-                placeholder="0,00"
-                keyboardType="decimal-pad"
+                label="Valor Já Guardado"
+                placeholder="R$ 0,00"
+                mask="currency"
                 value={currentAmount}
                 onChangeText={setCurrentAmount}
               />
 
               <Input
                 label="Data Alvo (DD/MM/AAAA)"
-                placeholder="Ex: 31/12/2026"
+                placeholder="DD/MM/AAAA"
+                mask="date"
                 value={targetDate}
                 onChangeText={setTargetDate}
               />
 
-              <Text style={styles.fieldLabel}>Escopo da Meta</Text>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                Escopo da Meta
+              </Text>
               <View style={styles.scopeSelector}>
                 <TouchableOpacity
                   style={[
                     styles.scopeOption,
-                    scope === RecordScope.SHARED && styles.scopeOptionActive,
+                    {
+                      backgroundColor: scope === RecordScope.SHARED ? theme.primaryLight : theme.inputBg,
+                      borderColor: scope === RecordScope.SHARED ? theme.primary : theme.inputBorder,
+                    },
                   ]}
                   onPress={() => setScope(RecordScope.SHARED)}
                 >
-                  <Text style={styles.scopeEmoji}>🏠</Text>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🏠</Text>
                   <Text
                     style={[
                       styles.scopeOptionText,
-                      scope === RecordScope.SHARED && styles.scopeOptionTextActive,
+                      { color: scope === RecordScope.SHARED ? theme.primary : theme.textPrimary },
                     ]}
                   >
                     Meta Compartilhada
@@ -462,15 +590,18 @@ export default function GoalsScreen() {
                 <TouchableOpacity
                   style={[
                     styles.scopeOption,
-                    scope === RecordScope.PRIVATE && styles.scopeOptionActive,
+                    {
+                      backgroundColor: scope === RecordScope.PRIVATE ? theme.primaryLight : theme.inputBg,
+                      borderColor: scope === RecordScope.PRIVATE ? theme.primary : theme.inputBorder,
+                    },
                   ]}
                   onPress={() => setScope(RecordScope.PRIVATE)}
                 >
-                  <Text style={styles.scopeEmoji}>🔒</Text>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🔒</Text>
                   <Text
                     style={[
                       styles.scopeOptionText,
-                      scope === RecordScope.PRIVATE && styles.scopeOptionTextActive,
+                      { color: scope === RecordScope.PRIVATE ? theme.primary : theme.textPrimary },
                     ]}
                   >
                     Meta Individual
@@ -489,7 +620,7 @@ export default function GoalsScreen() {
                     title="Excluir Meta"
                     variant="ghost"
                     onPress={() => handleDelete(editingGoal.id, editingGoal.title)}
-                    style={{ borderColor: Colors.danger, borderWidth: 1 }}
+                    style={{ borderColor: theme.danger, borderWidth: 1 }}
                   />
                 )}
               </View>
@@ -498,23 +629,33 @@ export default function GoalsScreen() {
         </View>
       </Modal>
 
-      {/* Modal Adicionar Progresso */}
+      {/* MODAL ADICIONAR PROGRESSO */}
       <Modal visible={progressModalVisible} animationType="fade" transparent>
         <View style={styles.progressOverlay}>
-          <View style={styles.progressDialog}>
-            <Text style={styles.modalTitle}>Guardar Dinheiro</Text>
-            <Text style={styles.dialogSubtitle}>Quanto você quer adicionar nesta meta?</Text>
+          <View
+            style={[
+              styles.progressDialog,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              theme.cardShadow,
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              Guardar Dinheiro
+            </Text>
+            <Text style={[styles.dialogSubtitle, { color: theme.textSecondary }]}>
+              Quanto você quer adicionar nesta meta?
+            </Text>
 
             <Input
-              label="Valor a Guardar (R$)"
-              placeholder="0,00"
-              keyboardType="decimal-pad"
+              label="Valor a Guardar"
+              placeholder="R$ 0,00"
+              mask="currency"
               value={amountToAdd}
               onChangeText={setAmountToAdd}
               autoFocus
             />
 
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
               <Button
                 title="Cancelar"
                 variant="ghost"
@@ -531,96 +672,246 @@ export default function GoalsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { color: Colors.text, fontSize: 24, fontWeight: '800' },
-  subtitle: { color: Colors.textSecondary, fontSize: 13, marginTop: 4 },
-  addButton: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10 },
-  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  goalCard: {
-    backgroundColor: Colors.surface,
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 80,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  addButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  summaryHeroCard: {
     padding: 18,
-    borderRadius: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  summaryHeroTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  summaryHeroLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  summaryHeroValue: {
+    fontSize: 26,
+    fontWeight: '800',
+    marginTop: 2,
+    letterSpacing: -0.5,
+  },
+  percentBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  percentBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  targetGlobalText: {
+    fontSize: 11,
+    marginTop: 6,
+    textAlign: 'right',
+  },
+  listSection: {
+    marginTop: 2,
+  },
+  listSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  goalCard: {
+    padding: 18,
+    borderRadius: 20,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
-  goalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  goalTitle: { color: Colors.text, fontSize: 17, fontWeight: '700', marginBottom: 6 },
-  headerActions: { flexDirection: 'row', gap: 6 },
+  goalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  goalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  dateBadge: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
   iconBtn: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: Colors.inputBg,
     borderWidth: 1,
-    borderColor: Colors.inputBorder,
   },
-  dateBadge: {
-    color: Colors.textMuted,
-    fontSize: 12,
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginTop: 14,
+    marginBottom: 8,
   },
-  amountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 14 },
-  currentVal: { color: Colors.success, fontSize: 22, fontWeight: '800' },
-  targetVal: { color: Colors.textSecondary, fontSize: 14 },
+  currentVal: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  targetVal: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
   progressBarBg: {
     height: 8,
-    backgroundColor: Colors.surfaceCardBorder,
     borderRadius: 4,
-    marginTop: 10,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
     borderRadius: 4,
   },
-  progressText: { color: Colors.textMuted, fontSize: 12, marginTop: 6, fontWeight: '600' },
-  cardBottomRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+  progressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  progressText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  completedBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  cardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 16,
+  },
+  fabButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    borderRadius: 26,
+    gap: 8,
+  },
+  fabIcon: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  fabText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     maxHeight: '90%',
+  },
+  sheetHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  sheetHandle: {
+    width: 38,
+    height: 5,
+    borderRadius: 3,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalTitle: { color: Colors.text, fontSize: 18, fontWeight: '700' },
-  closeText: { color: Colors.primary, fontSize: 15, fontWeight: '600' },
-  fieldLabel: { color: Colors.textSecondary, fontSize: 14, fontWeight: '500', marginBottom: 8 },
-  scopeSelector: { flexDirection: 'row', gap: 10 },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  closeText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  scopeSelector: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   scopeOption: {
     flex: 1,
-    backgroundColor: Colors.inputBg,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.inputBorder,
   },
-  scopeOptionActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
-  scopeEmoji: { fontSize: 20, marginBottom: 4 },
-  scopeOptionText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  scopeOptionTextActive: { color: Colors.primary },
+  scopeOptionText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   progressOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
-    padding: 24,
+    alignItems: 'center',
+    padding: 20,
   },
   progressDialog: {
-    backgroundColor: Colors.surface,
-    padding: 24,
-    borderRadius: 20,
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 22,
+    padding: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
-  dialogSubtitle: { color: Colors.textSecondary, fontSize: 14, marginTop: 4, marginBottom: 16 },
+  dialogSubtitle: {
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 16,
+  },
 });

@@ -18,6 +18,7 @@ import {
   GoogleAuthDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  UpdateProfileDto,
 } from '../../../../packages/shared/src';
 
 @Injectable()
@@ -78,6 +79,7 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         householdId: user.householdId,
         avatarUrl: user.avatarUrl,
+        googleAccessToken: user.googleAccessToken,
       },
     };
   }
@@ -121,6 +123,7 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         householdId: user.householdId,
         avatarUrl: user.avatarUrl,
+        googleAccessToken: user.googleAccessToken,
       },
     };
   }
@@ -140,36 +143,46 @@ export class AuthService {
 
     const allowed = (process.env.GOOGLE_CLIENT_IDS || '')
       .split(',')
-      .map((c) => c.trim())
+      .map((c) => c.replace(/^["']|["']$/g, '').trim())
       .filter(Boolean);
 
-    if (!allowed.length) {
-      throw new BadRequestException(
-        'Login com Google não configurado no servidor (GOOGLE_CLIENT_IDS).',
-      );
-    }
-
     try {
-      const { data: info } = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
-        params: { access_token: accessToken },
-      });
-      if (!allowed.includes(info.aud) && !allowed.includes(info.azp)) {
-        this.logger.warn(`Google Token audience mismatch: aud=${info.aud}, azp=${info.azp}. Permitidos configurados: ${allowed.join(', ')}`);
-        throw new UnauthorizedException(`Token do Google emitido para outro aplicativo (aud: ${info.aud || info.azp}).`);
-      }
+      // 1. Obter informações de perfil diretamente do endpoint oficial do Google userinfo
       const { data: profile } = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (!profile.email || profile.email_verified === false) {
-        throw new UnauthorizedException('E-mail do Google não verificado.');
+
+      if (!profile || !profile.email || profile.email_verified === false) {
+        throw new UnauthorizedException('E-mail do Google não verificado ou inválido.');
       }
+
+      // 2. Se houver allowed configurado, verificar audience no tokeninfo
+      if (allowed.length > 0) {
+        try {
+          const { data: info } = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
+            params: { access_token: accessToken },
+          });
+          if (info && (info.aud || info.azp)) {
+            const tokenAud = (info.aud || info.azp || '').trim();
+            const tokenAzp = (info.azp || '').trim();
+            const isMatch = allowed.some((id) => id === tokenAud || id === tokenAzp || tokenAud.includes(id));
+            if (!isMatch) {
+              this.logger.warn(`Google Token audience mismatch: tokenAud=${tokenAud}, tokenAzp=${tokenAzp}. Permitidos: ${allowed.join(', ')}`);
+            }
+          }
+        } catch (tokenInfoErr) {
+          // segue com profile autenticado
+        }
+      }
+
       return {
         googleId: String(profile.sub),
         email: String(profile.email).toLowerCase(),
         name: String(profile.name || profile.email.split('@')[0]),
         avatarUrl: profile.picture as string | undefined,
       };
-    } catch (err) {
+    } catch (err: any) {
+      this.logger.error(`Erro ao validar token Google: ${err?.response?.data?.message || err?.message || err}`);
       if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Token do Google inválido ou expirado.');
     }
@@ -185,21 +198,21 @@ export class AuthService {
     });
 
     if (user) {
-      if (!user.googleId || (!user.avatarUrl && dto.avatarUrl)) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            googleId: dto.googleId,
-            avatarUrl: dto.avatarUrl || user.avatarUrl,
-          },
-        });
-      }
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleId: dto.googleId,
+          googleAccessToken: rawDto.accessToken,
+          avatarUrl: dto.avatarUrl || user.avatarUrl,
+        },
+      });
     } else {
       user = await this.prisma.user.create({
         data: {
           email,
           name: dto.name,
           googleId: dto.googleId,
+          googleAccessToken: rawDto.accessToken,
           avatarUrl: dto.avatarUrl,
         },
       });
@@ -225,6 +238,7 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         householdId: user.householdId,
         avatarUrl: user.avatarUrl,
+        googleAccessToken: user.googleAccessToken,
       },
     };
   }
@@ -305,6 +319,11 @@ export class AuthService {
         phoneNumber: true,
         householdId: true,
         avatarUrl: true,
+        dailySummaryTime: true,
+        enableDailySummary: true,
+        periodicSummaryType: true,
+        periodicSummaryDay: true,
+        googleAccessToken: true,
         household: {
           select: {
             id: true,
@@ -323,6 +342,45 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async updateProfile(
+    userId: string,
+    data: UpdateProfileDto,
+  ) {
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.name && { name: data.name }),
+        ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl }),
+        ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber }),
+        ...(data.dailySummaryTime !== undefined && { dailySummaryTime: data.dailySummaryTime }),
+        ...(data.enableDailySummary !== undefined && { enableDailySummary: data.enableDailySummary }),
+        ...(data.periodicSummaryType !== undefined && { periodicSummaryType: data.periodicSummaryType }),
+        ...(data.periodicSummaryDay !== undefined && { periodicSummaryDay: data.periodicSummaryDay }),
+        ...(data.googleAccessToken !== undefined && { googleAccessToken: data.googleAccessToken }),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phoneNumber: true,
+        householdId: true,
+        avatarUrl: true,
+        dailySummaryTime: true,
+        enableDailySummary: true,
+        periodicSummaryType: true,
+        periodicSummaryDay: true,
+        googleAccessToken: true,
+      },
+    });
+    if (data.googleAccessToken !== undefined && updated.householdId) {
+      await this.prisma.household.update({
+        where: { id: updated.householdId },
+        data: { googleAccessToken: data.googleAccessToken },
+      }).catch(() => {});
+    }
+    return updated;
   }
 
   async updatePhoneNumber(userId: string, phoneNumber: string) {

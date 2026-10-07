@@ -46,7 +46,7 @@ export class HouseholdService {
 
     if (household.members.length >= 2) {
       // No MVP o casal é limitado a 2 membros
-      const isAlreadyMember = household.members.some((m) => m.id === userId);
+      const isAlreadyMember = household.members.some((m: any) => m.id === userId);
       if (!isAlreadyMember) {
         throw new BadRequestException('Este espaço já possui 2 membros cadastrados');
       }
@@ -76,6 +76,14 @@ export class HouseholdService {
 
     if (!user?.household) {
       return null;
+    }
+
+    if (user.googleAccessToken && user.household.googleAccessToken !== user.googleAccessToken) {
+      await this.prisma.household.update({
+        where: { id: user.household.id },
+        data: { googleAccessToken: user.googleAccessToken },
+      });
+      user.household.googleAccessToken = user.googleAccessToken;
     }
 
     return user.household;

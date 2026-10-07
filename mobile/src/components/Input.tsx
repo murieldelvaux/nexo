@@ -7,12 +7,14 @@ import {
   TextInputProps,
   ViewStyle,
 } from 'react-native';
-import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
+import { applyMask, MaskType } from '../utils/masks';
 
-interface InputProps extends TextInputProps {
+export interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
   containerStyle?: ViewStyle;
+  mask?: MaskType;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -20,17 +22,74 @@ export const Input: React.FC<InputProps> = ({
   error,
   containerStyle,
   style,
+  mask,
+  value,
+  onChangeText,
+  keyboardType,
+  placeholder,
+  maxLength,
   ...props
 }) => {
+  const { theme } = useTheme();
+
+  const handleTextChange = (text: string) => {
+    if (!onChangeText) return;
+    if (!mask) {
+      onChangeText(text);
+      return;
+    }
+    const masked = applyMask(text, mask);
+    onChangeText(masked);
+  };
+
+  let resolvedKeyboardType = keyboardType;
+  let resolvedPlaceholder = placeholder;
+  let resolvedMaxLength = maxLength;
+
+  if (mask === 'currency') {
+    resolvedKeyboardType = keyboardType || 'numeric';
+    resolvedPlaceholder = placeholder || 'R$ 0,00';
+  } else if (mask === 'date') {
+    resolvedKeyboardType = keyboardType || 'numeric';
+    resolvedPlaceholder = placeholder || 'DD/MM/AAAA';
+    resolvedMaxLength = maxLength || 10;
+  } else if (mask === 'time') {
+    resolvedKeyboardType = keyboardType || 'numeric';
+    resolvedPlaceholder = placeholder || 'HH:MM';
+    resolvedMaxLength = maxLength || 5;
+  } else if (mask === 'phone') {
+    resolvedKeyboardType = keyboardType || 'phone-pad';
+    resolvedPlaceholder = placeholder || '+55 11 99999-9999';
+    resolvedMaxLength = maxLength || 19;
+  } else if (mask === 'datetime') {
+    resolvedKeyboardType = keyboardType || 'numeric';
+    resolvedPlaceholder = placeholder || 'DD/MM/AAAA HH:MM';
+    resolvedMaxLength = maxLength || 16;
+  }
+
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label ? <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text> : null}
       <TextInput
-        style={[styles.input, error ? styles.inputError : null, style]}
-        placeholderTextColor={Colors.textMuted}
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.inputBg,
+            borderColor: theme.inputBorder,
+            color: theme.textPrimary,
+          },
+          error ? { borderColor: theme.danger } : null,
+          style,
+        ]}
+        placeholderTextColor={theme.textMuted}
+        value={value}
+        onChangeText={handleTextChange}
+        keyboardType={resolvedKeyboardType}
+        placeholder={resolvedPlaceholder}
+        maxLength={resolvedMaxLength}
         {...props}
       />
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error ? <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text> : null}
     </View>
   );
 };
@@ -40,26 +99,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
     marginBottom: 6,
   },
   input: {
-    backgroundColor: Colors.inputBg,
     borderWidth: 1,
-    borderColor: Colors.inputBorder,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    color: Colors.text,
-    fontSize: 16,
-  },
-  inputError: {
-    borderColor: Colors.danger,
+    fontSize: 15,
   },
   errorText: {
-    color: Colors.danger,
     fontSize: 12,
     marginTop: 4,
   },

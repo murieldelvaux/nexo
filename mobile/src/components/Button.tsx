@@ -7,7 +7,7 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 
 interface ButtonProps {
   title: string;
@@ -30,6 +30,40 @@ export const Button: React.FC<ButtonProps> = ({
   textStyle,
   icon,
 }) => {
+  const { theme } = useTheme();
+
+  const getVariantStyle = () => {
+    switch (variant) {
+      case 'primary':
+        return { backgroundColor: theme.primary };
+      case 'secondary':
+        return {
+          backgroundColor: theme.surfaceSubtle,
+          borderWidth: 1,
+          borderColor: theme.border,
+        };
+      case 'danger':
+        return { backgroundColor: theme.danger };
+      case 'ghost':
+        return { backgroundColor: 'transparent' };
+      default:
+        return { backgroundColor: theme.primary };
+    }
+  };
+
+  const getTextColor = () => {
+    switch (variant) {
+      case 'secondary':
+        return theme.textPrimary;
+      case 'ghost':
+        return theme.primary;
+      case 'danger':
+      case 'primary':
+      default:
+        return '#FFFFFF';
+    }
+  };
+
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -37,21 +71,20 @@ export const Button: React.FC<ButtonProps> = ({
       disabled={disabled || isLoading}
       style={[
         styles.button,
-        styles[variant],
+        getVariantStyle(),
         (disabled || isLoading) && styles.disabled,
         style,
       ]}
     >
       {isLoading ? (
-        <ActivityIndicator color={variant === 'ghost' ? Colors.primary : '#FFFFFF'} />
+        <ActivityIndicator color={variant === 'ghost' ? theme.primary : '#FFFFFF'} />
       ) : (
         <>
           {icon}
           <Text
             style={[
               styles.text,
-              variant === 'ghost' && styles.ghostText,
-              variant === 'secondary' && styles.secondaryText,
+              { color: getTextColor() },
               textStyle,
             ]}
           >
@@ -73,32 +106,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  primary: {
-    backgroundColor: Colors.primary,
-  },
-  secondary: {
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  danger: {
-    backgroundColor: Colors.danger,
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-  },
   disabled: {
     opacity: 0.5,
   },
   text: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryText: {
-    color: Colors.text,
-  },
-  ghostText: {
-    color: Colors.primary,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

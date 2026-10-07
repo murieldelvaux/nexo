@@ -17,6 +17,9 @@ import {
 } from 'react-native';
 import { RecordScope, TaskDto } from '../../../packages/shared/src';
 import { useTasks } from '../../src/hooks/useTasks';
+import { useTheme } from '../../src/theme/ThemeContext';
+import { AppHeader } from '../../src/components/AppHeader';
+import { maskDateTime } from '../../src/utils/format';
 
 const NexoLogo = require('../../assets/nexo-logo.png');
 
@@ -110,9 +113,7 @@ export const DarkTheme = {
 type FilterCategory = 'ALL' | 'PENDING' | 'TODAY' | 'SHARED' | 'COMPLETED';
 
 export default function TasksScreen() {
-  const systemScheme = useColorScheme();
-  const [isDarkMode, setIsDarkMode] = useState(systemScheme === 'dark');
-  const theme = isDarkMode ? DarkTheme : LightTheme;
+  const { theme, isDark: isDarkMode } = useTheme();
 
   // Modais de Criação e Edição
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -427,30 +428,7 @@ export default function TasksScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      {/* HEADER SUPERIOR COM LOGO E ALTERNÂNCIA DE TEMA */}
-      <View style={[styles.topBar, { borderBottomColor: theme.border }]}>
-        <View style={styles.brandContainer}>
-          <Image source={NexoLogo} style={styles.logoImage} resizeMode="contain" />
-          <View style={styles.brandMeta}>
-            <Text style={[styles.brandName, { color: theme.textPrimary }]}>Nexo</Text>
-          </View>
-        </View>
-
-        {/* Toggle Light / Dark Mode */}
-        <TouchableOpacity
-          style={[
-            styles.themeToggleBtn,
-            { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
-          ]}
-          onPress={() => setIsDarkMode((prev) => !prev)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.themeToggleIcon}>{isDarkMode ? '🌙' : '☀️'}</Text>
-          <Text style={[styles.themeToggleText, { color: theme.textPrimary }]}>
-            {isDarkMode ? 'Dark' : 'Light'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <AppHeader title="Nexo" subtitle="Rotina & Lembretes" />
 
       {/* TÍTULO PRINCIPAL (iOS HIG TYPOGRAPHY) & CARDS DE RESUMO */}
       <View style={styles.titleSection}>
@@ -460,7 +438,7 @@ export default function TasksScreen() {
               Rotina & Lembretes
             </Text>
             <Text style={[styles.screenSubtitle, { color: theme.textSecondary }]}>
-              Organize tarefas da casa e seus compromissos pessoais.
+              Organize tarefas e seus compromissos pessoais ou compartilhados.
             </Text>
           </View>
         </View>
@@ -765,10 +743,12 @@ export default function TasksScreen() {
                     color: theme.textPrimary,
                   },
                 ]}
-                placeholder="Ex: 30/10/2026 ou 30/10/2026 15:00"
+                placeholder="DD/MM/AAAA ou DD/MM/AAAA HH:MM"
                 placeholderTextColor={theme.textMuted}
                 value={dueDateStr}
-                onChangeText={setDueDateStr}
+                onChangeText={(t) => setDueDateStr(maskDateTime(t))}
+                keyboardType="numeric"
+                maxLength={16}
               />
 
               {/* Presets Rápidos de Data (1 toque com o polegar) */}
@@ -867,7 +847,7 @@ export default function TasksScreen() {
                         { color: scope === RecordScope.SHARED ? theme.primary : theme.textPrimary },
                       ]}
                     >
-                      Lembrete da Casa
+                      Lembrete compartilhado
                     </Text>
                     <Text style={[styles.scopeCardDesc, { color: theme.textSecondary }]}>
                       Compartilhado com o par / lar
@@ -950,8 +930,12 @@ export default function TasksScreen() {
                     color: theme.textPrimary,
                   },
                 ]}
+                placeholder="DD/MM/AAAA ou DD/MM/AAAA HH:MM"
+                placeholderTextColor={theme.textMuted}
                 value={dueDateStr}
-                onChangeText={setDueDateStr}
+                onChangeText={(t) => setDueDateStr(maskDateTime(t))}
+                keyboardType="numeric"
+                maxLength={16}
               />
 
               {/* Atalhos Rápidos */}
@@ -1028,7 +1012,7 @@ export default function TasksScreen() {
                         { color: scope === RecordScope.SHARED ? theme.primary : theme.textPrimary },
                       ]}
                     >
-                      Lembrete da Casa
+                      Lembrete compartilhado
                     </Text>
                     <Text style={[styles.scopeCardDesc, { color: theme.textSecondary }]}>
                       Compartilhado

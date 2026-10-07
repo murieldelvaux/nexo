@@ -8,6 +8,7 @@ import {
   GoogleAuthDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  UpdateProfileDto,
 } from '../../../packages/shared/src';
 
 export function useAuth() {
@@ -69,6 +70,15 @@ export function useAuth() {
     mutationFn: (dto: ResetPasswordDto) => authService.resetPassword(dto),
   });
 
+  const updateProfileMutation = useMutation({
+    mutationFn: (dto: UpdateProfileDto) =>
+      authService.updateProfile(dto),
+    onSuccess: (updatedUser) => {
+      queryClient.setQueryData(queryKeys.auth.me, (old: any) => ({ ...old, ...updatedUser }));
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.me });
+    },
+  });
+
   const updatePhoneMutation = useMutation({
     mutationFn: (phone: string) => authService.updatePhone(phone),
     onSuccess: () => {
@@ -99,6 +109,8 @@ export function useAuth() {
     isForgotPasswordLoading: forgotPasswordMutation.isPending,
     resetPassword: resetPasswordMutation.mutateAsync,
     isResetPasswordLoading: resetPasswordMutation.isPending,
+    updateProfile: updateProfileMutation.mutateAsync,
+    isUpdatingProfile: updateProfileMutation.isPending,
     updatePhone: updatePhoneMutation.mutateAsync,
     isUpdatingPhone: updatePhoneMutation.isPending,
     logout,

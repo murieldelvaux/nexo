@@ -16,6 +16,14 @@ export const queryKeys = {
     all: ['tasks'] as const,
     list: () => ['tasks', 'list'] as const,
   },
+  shoppingList: {
+    all: ['shoppingList'] as const,
+    list: (scope?: string) => ['shoppingList', 'list', scope] as const,
+  },
+  calendar: {
+    all: ['calendar'] as const,
+    list: (start?: string, end?: string) => ['calendar', 'list', { start, end }] as const,
+  },
   household: {
     current: ['household', 'current'] as const,
   },

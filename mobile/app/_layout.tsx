@@ -5,13 +5,16 @@ import { QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, ActivityIndicator } from 'react-native';
 import { appQueryClient } from '../src/services/queryClient';
-import { Colors } from '../src/theme/colors';
 import { authService } from '../src/services/auth.service';
 import { queryKeys } from '../src/services/queryKeys';
+import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
+import { DrawerProvider } from '../src/context/DrawerContext';
+import { AppDrawer } from '../src/components/AppDrawer';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const segments = useSegments();
+  const { theme } = useTheme();
 
   const userQuery = useQuery({
     queryKey: queryKeys.auth.me,
@@ -48,8 +51,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Tela de loading enquanto verifica autenticação
   if (userQuery.isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={Colors.primary} size="large" />
+      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={theme.primary} size="large" />
       </View>
     );
   }
@@ -57,24 +60,40 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function MainNavigation() {
+  const { theme, isDark } = useTheme();
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: theme.background },
+          animation: 'fade',
+        }}
+      >
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(household)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+      {/* Menu Lateral Global (Drawer) */}
+      <AppDrawer />
+    </View>
+  );
+}
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={appQueryClient}>
-        <StatusBar style="light" />
-        <AuthGuard>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: Colors.background },
-              animation: 'fade',
-            }}
-          >
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="(household)" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          </Stack>
-        </AuthGuard>
+        <ThemeProvider>
+          <DrawerProvider>
+            <AuthGuard>
+              <MainNavigation />
+            </AuthGuard>
+          </DrawerProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
   );
