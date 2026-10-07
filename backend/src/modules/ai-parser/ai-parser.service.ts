@@ -65,6 +65,18 @@ export class AiParserService {
             isAllDay: { type: SchemaType.BOOLEAN },
             location: { type: SchemaType.STRING },
             notes: { type: SchemaType.STRING },
+            items: {
+              type: SchemaType.ARRAY,
+              items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  name: { type: SchemaType.STRING },
+                  quantity: { type: SchemaType.STRING },
+                  category: { type: SchemaType.STRING },
+                },
+                required: ["name"],
+              },
+            },
           },
           required: ['title', 'scope'],
         },
@@ -96,6 +108,12 @@ REGRA DE OURO SOBRE ESCOPO (PRIVADO vs COMPARTILHADO):
 - O escopo OBRIGATÓRIO por padrão é "PRIVATE".
 - SOMENTE classifique como "SHARED" se a mensagem contiver explicitamente palavras como "compartilhado", "compartilhada", "compartilhar", "para nós", "pra nós", "juntos", "do casal", "nossa", "nosso", "da casa".
 - Se nada for dito sobre ser compartilhado, NUNCA presuma que é compartilhado: marque SEMPRE "PRIVATE".
+
+
+0. LISTA DE COMPRAS (CREATE_SHOPPING_ITEM):
+- Se a mensagem indicar itens a comprar ou adicionar na lista (ex: "comprar leite, queijo e ovos", "colocar pão na lista de compras", "adicionar na lista de mercado café e açúcar"):
+  Classifique OBRIGATORIAMENTE como CREATE_SHOPPING_ITEM.
+- "items": extraia cada item em um elemento do array com "name" capitalizado e "quantity" ("1" se não especificado).
 
 1. METAS (CREATE_GOAL):
 - SE a mensagem contiver "meta", "na meta", "nova meta", "objetivo", "guardar", "poupar", "juntar dinheiro" (ex: "Adicionar viagem para Itália na meta com gasto de 10.000", "Meta reforma 5000", "Guardar 2000 na meta carro"):

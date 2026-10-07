@@ -14,6 +14,7 @@ export function useShoppingList(scope?: RecordScope) {
   const listQuery = useQuery({
     queryKey: queryKeys.shoppingList.list(scope),
     queryFn: () => shoppingListService.getAll(scope),
+    refetchInterval: 4000,
   });
 
   const createMutation = useMutation({

@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { useShoppingList } from '../../src/hooks/useShoppingList';
 import { useTheme } from '../../src/theme/ThemeContext';
@@ -35,6 +36,8 @@ export default function ShoppingListScreen() {
     pendingItems,
     completedItems,
     isLoading,
+    isRefetching,
+    refetch,
     createItem,
     isCreating,
     toggleItem,
@@ -161,7 +164,18 @@ export default function ShoppingListScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <AppHeader title="Nexo" subtitle="Lista de Compras" />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
+      >
         {/* TÍTULO E SUBTÍTULO */}
         <View style={styles.headerTitleRow}>
           <View>

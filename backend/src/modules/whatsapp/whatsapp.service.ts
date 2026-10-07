@@ -152,9 +152,30 @@ export class WhatsappService {
           `🎯 *Meta Cadastrada!*${sourceNotice}\n\n🏷️ *Meta:* ${goal.title}\n💰 *Alvo:* R$ ${formattedAmount}\n👥 *Escopo:* ${scopeLabel}\n\nJá atualizado no seu painel de Metas no app Nexo! 📲`,
         );
             } else if (parsed.intent === AIIntent.CREATE_SHOPPING_ITEM) {
-        const itemsToCreate = parsed.data.items && parsed.data.items.length > 0
+        let itemsToCreate = parsed.data.items && parsed.data.items.length > 0
           ? parsed.data.items
-          : [{ name: parsed.data.title || 'Item de compra', quantity: '1' }];
+          : [];
+
+        if (itemsToCreate.length === 0 && parsed.data.title) {
+          const raw = parsed.data.title
+            .replace(/^(?:comprar|adicionar\s+(?:na\s+)?lista\s*(?:de\s*(?:compras|mercado))?)\s*/i, "")
+            .trim();
+          const splitItems = raw
+            .split(/(?:,|\be\b|\n|•|-)+/i)
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+          itemsToCreate = (splitItems.length > 0 ? splitItems : [raw]).map((name) => ({
+            name: name.charAt(0).toUpperCase() + name.slice(1),
+            quantity: "1",
+            category: "Geral",
+          }));
+        }
+
+        // Se o usuário faz parte de um lar, lista de compras é compartilhada por padrão para o casal ver
+        const shoppingIsShared = !!user.householdId && parsed.data.scope !== RecordScope.PRIVATE;
+        const shoppingScope = shoppingIsShared ? RecordScope.SHARED : RecordScope.PRIVATE;
+        const shoppingScopeLabel = shoppingIsShared ? "🏠 Compartilhado (Casa)" : "🔒 Privado (Pessoal)";
 
         const createdNames: string[] = [];
         for (const it of itemsToCreate) {
@@ -162,14 +183,14 @@ export class WhatsappService {
           await this.prisma.shoppingItem.create({
             data: {
               name: it.name.trim(),
-              quantity: it.quantity ? it.quantity.trim() : '1',
-              category: it.category ? it.category.trim() : 'Geral',
-              scope: isShared ? RecordScope.SHARED : RecordScope.PRIVATE,
+              quantity: it.quantity ? it.quantity.trim() : "1",
+              category: it.category ? it.category.trim() : "Geral",
+              scope: shoppingScope,
               userId: user.id,
-              householdId: isShared ? user.householdId : null,
+              householdId: shoppingIsShared ? user.householdId : null,
             },
           });
-          createdNames.push(`• ${it.name}${it.quantity && it.quantity !== '1' ? ` (${it.quantity})` : ''}`);
+          createdNames.push(`• ${it.name}${it.quantity && it.quantity !== "1" ? ` (${it.quantity})` : ""}`);
         }
 
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
