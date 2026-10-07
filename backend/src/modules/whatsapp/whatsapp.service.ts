@@ -50,10 +50,10 @@ export class WhatsappService {
 
       // 2. Identificar Usuário pelo Telefone
       const user = await this.findUserByPhone(message.from);
+      const replyToPhone = user?.phoneNumber || message.from;
 
       if (!user) {
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `Olá! 👋 Seu número (${fromNumber}) ainda não está vinculado a uma conta Nexo.\n\nAcesse o app e cadastre seu telefone em Perfil para começar a registrar gastos, metas e lembretes por aqui!`,
         );
         return;
@@ -75,8 +75,7 @@ export class WhatsappService {
 
         const media = await this.downloadMedia(mediaId);
         if (!media) {
-          await this.sendWhatsAppMessage(
-            message.from,
+          await this.sendWhatsAppMessage(replyToPhone,
             '⚠️ Não foi possível baixar a foto/comprovante. Por favor, tente enviar novamente.',
           );
           return;
@@ -92,8 +91,7 @@ export class WhatsappService {
 
         const media = await this.downloadMedia(mediaId);
         if (!media) {
-          await this.sendWhatsAppMessage(
-            message.from,
+          await this.sendWhatsAppMessage(replyToPhone,
             '⚠️ Não foi possível processar o áudio enviado. Por favor, tente falar mais perto do microfone ou enviar por texto.',
           );
           return;
@@ -110,8 +108,7 @@ export class WhatsappService {
 
         const media = await this.downloadMedia(mediaId);
         if (!media) {
-          await this.sendWhatsAppMessage(
-            message.from,
+          await this.sendWhatsAppMessage(replyToPhone,
             "⚠️ Não foi possível baixar o arquivo enviado. Por favor, tente enviar novamente.",
           );
           return;
@@ -127,6 +124,7 @@ export class WhatsappService {
       // Regra de Ouro: Escopo é PRIVATE por padrão. Só é SHARED se o parser indicar SHARED E o usuário tiver householdId.
       const isShared = parsed.data.scope === RecordScope.SHARED && !!user.householdId;
       const scopeLabel = isShared ? '🏠 Compartilhado' : '🔒 Privado (Pessoal)';
+      
 
       if (parsed.intent === AIIntent.CREATE_EXPENSE && parsed.data.amount) {
         const expense = await this.prisma.expense.create({
@@ -144,8 +142,7 @@ export class WhatsappService {
         const formattedAmount = Number(expense.amount).toFixed(2).replace('.', ',');
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `✅ *Gasto Registrado!*${sourceNotice}\n\n📝 *Nome:* ${expense.description}\n💰 *Valor:* R$ ${formattedAmount}\n🏷️ *Escopo:* ${scopeLabel}\n\nJá sincronizado no seu app Nexo! 📲`,
         );
       } else if (parsed.intent === AIIntent.CREATE_GOAL && parsed.data.amount) {
@@ -165,8 +162,7 @@ export class WhatsappService {
         });
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `🎯 *Meta Cadastrada!*${sourceNotice}\n\n🏷️ *Meta:* ${goal.title}\n💰 *Alvo:* R$ ${formattedAmount}\n👥 *Escopo:* ${scopeLabel}\n\nJá atualizado no seu painel de Metas no app Nexo! 📲`,
         );
             } else if (parsed.intent === AIIntent.CREATE_SHOPPING_ITEM) {
@@ -214,8 +210,7 @@ export class WhatsappService {
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
         const itemsText = createdNames.slice(0, 15).join('\n') + (createdNames.length > 15 ? `\n...e mais ${createdNames.length - 15} itens` : '');
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `🛒 *Lista de Compras Atualizada!*${sourceNotice}\n\n${itemsText}\n\n🏷️ ${scopeLabel}\n\nJá sincronizado no app Nexo! Quando comprar, basta dar check no app! ✅📲`,
         );
 } else if (parsed.intent === AIIntent.CREATE_TASK) {
@@ -247,8 +242,7 @@ export class WhatsappService {
         }
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `📌 *Lembrete Anotado!*${sourceNotice}\n\n"${task.title}"\n🏷️ ${scopeLabel}${timeNotice}\n\nVocê pode ver sua lista de rotina no app! 📲`,
         );
       } else if (parsed.intent === AIIntent.QUERY_CALENDAR) {
@@ -279,8 +273,7 @@ export class WhatsappService {
         });
 
         if (events.length === 0) {
-          await this.sendWhatsAppMessage(
-            message.from,
+          await this.sendWhatsAppMessage(replyToPhone,
             `📅 *Sua Agenda para Hoje (${todayFormatted}):*\n\n☕ Você não tem nenhum compromisso agendado para hoje! Aproveite o dia ou diga *"agendar <data> às <hora> - <evento>"* para marcar algo novo.`,
           );
           return;
@@ -301,8 +294,7 @@ export class WhatsappService {
           })
           .join("\n");
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `📅 *Sua Agenda para Hoje (${todayFormatted}):*\n\n${lines}\n\n_Total: ${events.length} compromisso(s)._`,
         );
         return;
@@ -320,8 +312,7 @@ export class WhatsappService {
         });
 
         if (tasks.length === 0) {
-          await this.sendWhatsAppMessage(
-            message.from,
+          await this.sendWhatsAppMessage(replyToPhone,
             `📋 *Seus Lembretes & Tarefas:*\n\n🎉 Você não tem nenhum lembrete ou tarefa pendente no momento! Tudo em dia!\n\n_Para adicionar um lembrete: "lembrar de pagar conta de luz amanhã às 10h"_`,
           );
           return;
@@ -344,8 +335,7 @@ export class WhatsappService {
           })
           .join("\n");
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `📋 *Seus Lembretes & Tarefas Pendentes (${tasks.length}):*\n\n${lines}\n\n_Você também pode marcá-los como concluídos no app Nexo._`,
         );
         return;
@@ -362,8 +352,7 @@ export class WhatsappService {
         });
 
         if (items.length === 0) {
-          await this.sendWhatsAppMessage(
-            message.from,
+          await this.sendWhatsAppMessage(replyToPhone,
             `🛒 *Sua Lista de Compras:*\n\n✨ Sua lista de compras está vazia!\n\n_Para adicionar itens, basta mandar mensagem ou áudio: "comprar arroz, feijão e ovos" ou enviar uma foto/planilha._`,
           );
           return;
@@ -377,8 +366,7 @@ export class WhatsappService {
           })
           .join("\n");
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `🛒 *Sua Lista de Compras (${items.length} itens pendentes):*\n\n${lines}\n\n_Para adicionar mais itens, envie: "comprar <item>" ou mande um áudio._`,
         );
         return;
@@ -471,13 +459,11 @@ export class WhatsappService {
           ? `\n📍 *Local:* ${calendarEvent.location}`
           : "";
 
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `📅 *Compromisso Agendado!*${sourceNotice}\n\n👉 *${calendarEvent.title}*\n🗓️ *Data:* ${formattedDate}\n⏰ *Horário:* ${timeNotice}${locationNotice}\n🏷️ *Escopo:* ${scopeLabel}${syncNotice}\n\nVocê pode visualizá-lo e editá-lo no app Nexo! 📲`,
         );
       } else {
-        await this.sendWhatsAppMessage(
-          message.from,
+        await this.sendWhatsAppMessage(replyToPhone,
           `🤔 Não consegui identificar os dados com clareza.\n\nExperimente:\n• Enviar foto de um comprovante ou cupom fiscal\n• Gravar um áudio dizendo: "Gastei 50 no mercado hoje"\n• Gravar um áudio: "Guardar 5000 na meta viagem"\n• Digitar: "Almoço 35"`,
         );
       }
@@ -571,7 +557,15 @@ export class WhatsappService {
   async sendWhatsAppMessage(toPhone: string, text: string) {
     const accessToken = this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
     const phoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
-    const cleanPhone = (toPhone || '').replace(/\D/g, '');
+    let cleanPhone = (toPhone || '').replace(/\D/g, '');
+
+    // Normalização para celular brasileiro: Meta Cloud API exige o 9º dígito como destinatário (ex: 5535997108453)
+    if (cleanPhone.startsWith('55') && cleanPhone.length === 12) {
+      const ddd = parseInt(cleanPhone.slice(2, 4), 10);
+      if (ddd >= 11) {
+        cleanPhone = cleanPhone.slice(0, 4) + '9' + cleanPhone.slice(4);
+      }
+    }
 
     if (!accessToken || !phoneNumberId || accessToken === 'your_meta_permanent_access_token_here') {
       this.logger.warn(
@@ -597,7 +591,38 @@ export class WhatsappService {
         },
       );
     } catch (err: any) {
-      this.logger.error(`Failed to send WhatsApp message via Meta API: ${err?.response?.data || err.message}`);
+      const errData = err?.response?.data ? JSON.stringify(err.response.data) : err.message;
+      this.logger.error(`Failed to send WhatsApp message via Meta API (${cleanPhone}): ${errData}`);
+
+      // Fallback: se falhar e tiver formato alternativo com/sem 9, tenta alternativa
+      const altPhone =
+        cleanPhone.startsWith('55') && cleanPhone.length === 13 && cleanPhone[4] === '9'
+          ? cleanPhone.slice(0, 4) + cleanPhone.slice(5)
+          : null;
+
+      if (altPhone) {
+        try {
+          await axios.post(
+            `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
+            {
+              messaging_product: 'whatsapp',
+              to: altPhone,
+              type: 'text',
+              text: { body: text },
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            },
+          );
+          this.logger.log(`WhatsApp message successfully delivered via fallback phone: ${altPhone}`);
+        } catch (retryErr: any) {
+          const retryData = retryErr?.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
+          this.logger.error(`Fallback attempt also failed (${altPhone}): ${retryData}`);
+        }
+      }
     }
   }
 }
