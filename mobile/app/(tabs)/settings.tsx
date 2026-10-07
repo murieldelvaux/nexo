@@ -6,6 +6,8 @@ import {
   SafeAreaView,
   ScrollView,
   TouchableOpacity,
+  Image,
+  Modal,
   Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -17,17 +19,67 @@ import { AppHeader } from '../../src/components/AppHeader';
 import { Input } from '../../src/components/Input';
 import { Button } from '../../src/components/Button';
 
-export default function SettingsScreen() {
+// Avatares rápidos disponíveis para escolha
+const AVATAR_PRESETS = [
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&auto=format&fit=crop&q=80',
+];
+
+export default function ProfileScreen() {
   const router = useRouter();
-  const { user, updatePhone, isUpdatingPhone } = useAuth();
+  const { user, updateProfile, isUpdatingProfile, updatePhone, isUpdatingPhone } = useAuth();
   const { household, joinHousehold, isJoining } = useHousehold();
   const { theme, isDark, toggleTheme } = useTheme();
 
+  // Estados de Edição de Foto
+  const [photoModalVisible, setPhotoModalVisible] = useState(false);
+  const [newAvatarUrl, setNewAvatarUrl] = useState('');
+
+  // Estados de Edição de Nome
+  const [nameModalVisible, setNameModalVisible] = useState(false);
+  const [newName, setNewName] = useState(user?.name || '');
+
+  // Estados de Convite e Telefone
   const [inviteCode, setInviteCode] = useState('');
   const [joinError, setJoinError] = useState('');
-
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [phoneSaved, setPhoneSaved] = useState(false);
+
+  const handleOpenPhotoModal = () => {
+    setNewAvatarUrl(user?.avatarUrl || '');
+    setPhotoModalVisible(true);
+  };
+
+  const handleSavePhoto = async (urlToSave?: string) => {
+    const finalUrl = (urlToSave !== undefined ? urlToSave : newAvatarUrl).trim();
+    try {
+      await updateProfile({ avatarUrl: finalUrl || undefined });
+      setPhotoModalVisible(false);
+      showMessage('Sucesso', 'Foto de perfil atualizada!');
+    } catch {
+      showMessage('Erro', 'Não foi possível atualizar a foto.');
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!newName.trim()) {
+      showMessage('Atenção', 'Informe seu nome.');
+      return;
+    }
+    try {
+      await updateProfile({ name: newName.trim() });
+      setNameModalVisible(false);
+      showMessage('Sucesso', 'Nome atualizado!');
+    } catch {
+      showMessage('Erro', 'Não foi possível atualizar o nome.');
+    }
+  };
 
   const handleSavePhone = async () => {
     if (!phoneNumber.trim()) {
@@ -48,7 +100,7 @@ export default function SettingsScreen() {
     if (!household?.inviteCode) return;
     try {
       await Share.share({
-        message: `Oi! Entra comigo no Nexo para organizarmos nossas contas e tarefas da casa juntos. Use nosso código de convite: ${household.inviteCode}`,
+        message: `Oi! Entra comigo no Nexo para organizarmos nossas contas e tarefas juntos. Use nosso código de convite: ${household.inviteCode}`,
       });
     } catch (e) {
       console.error(e);
@@ -84,36 +136,74 @@ export default function SettingsScreen() {
 
   const userInitials = user?.name
     ? user.name
-        .split(' ')
-        .map((n: string) => n[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()
+      .split(' ')
+      .map((n: string) => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase()
     : 'NX';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* HEADER PRINCIPAL COM HAMBÚRGUER & LOGO */}
-      <AppHeader title="Nexo" subtitle="Ajustes & Configurações" />
+      <AppHeader title="Nexo" subtitle="Meu Perfil" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* CARTÃO DE PERFIL DO USUÁRIO */}
+        {/* CARTÃO DE PERFIL COM FOTO DO GOOGLE / NOVA FOTO */}
         <View style={[styles.profileCard, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}>
-          <View style={[styles.avatarCircle, { backgroundColor: theme.primary }]}>
-            <Text style={styles.avatarText}>{userInitials}</Text>
+          <View style={styles.avatarWrapper}>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.largeAvatar} />
+            ) : (
+              <View style={[styles.largeAvatarFallback, { backgroundColor: theme.primary }]}>
+                <Text style={styles.largeAvatarText}>{userInitials}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.cameraBadge, { backgroundColor: theme.primary, borderColor: theme.surface }]}
+              onPress={handleOpenPhotoModal}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 13, color: '#FFFFFF' }}>📷</Text>
+            </TouchableOpacity>
           </View>
+
           <View style={styles.profileMeta}>
-            <Text style={[styles.profileName, { color: theme.textPrimary }]}>
-              {user?.name || 'Usuário Nexo'}
-            </Text>
+            <View style={styles.nameRow}>
+              <Text style={[styles.profileName, { color: theme.textPrimary }]}>
+                {user?.name || 'Usuário Nexo'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setNewName(user?.name || '');
+                  setNameModalVisible(true);
+                }}
+                style={styles.editNameBtn}
+              >
+                <Text style={{ fontSize: 13 }}>✏️</Text>
+              </TouchableOpacity>
+            </View>
+
             <Text style={[styles.profileEmail, { color: theme.textSecondary }]}>
               {user?.email || ''}
             </Text>
-            <View style={[styles.statusBadge, { backgroundColor: theme.primaryLight }]}>
-              <Text style={[styles.statusBadgeText, { color: theme.primary }]}>
+
+            <TouchableOpacity
+              style={[styles.changePhotoPill, { backgroundColor: theme.primaryLight }]}
+              onPress={handleOpenPhotoModal}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.changePhotoPillText, { color: theme.primary }]}>
+                {user?.avatarUrl ? 'Trocar foto de perfil' : '+ Adicionar foto de perfil'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={[styles.statusBadge, { backgroundColor: theme.surfaceSubtle }]}>
+              <Text style={[styles.statusBadgeText, { color: theme.textSecondary }]}>
                 {household?.name ? `🏠 Espaço: ${household.name}` : '👤 Conta Individual'}
               </Text>
             </View>
@@ -131,7 +221,7 @@ export default function SettingsScreen() {
                 Assistente WhatsApp
               </Text>
               <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-                Envie áudios, fotos de comprovantes e textos
+                Envie áudios, fotos de comprovantes e listas
               </Text>
             </View>
           </View>
@@ -154,7 +244,7 @@ export default function SettingsScreen() {
 
           <View style={[styles.tipBanner, { backgroundColor: theme.surfaceSubtle }]}>
             <Text style={[styles.tipText, { color: theme.textSecondary }]}>
-              💡 <Text style={{ fontWeight: '700' }}>Dica:</Text> Basta mandar um áudio como <Text style={{ fontStyle: 'italic' }}>"Gastei 50 no mercado hoje"</Text> ou a foto de uma nota fiscal para a IA registrar na hora.
+              💡 <Text style={{ fontWeight: '700' }}>Dica:</Text> Você pode mandar áudios como <Text style={{ fontStyle: 'italic' }}>"Gastei 50 no mercado hoje"</Text>, foto de cupom fiscal, ou mandar fotos de listas de compras escritas no papel!
             </Text>
           </View>
         </View>
@@ -204,11 +294,15 @@ export default function SettingsScreen() {
               </Text>
               {household.members?.map((member) => (
                 <View key={member.id} style={[styles.memberRow, { borderBottomColor: theme.border }]}>
-                  <View style={[styles.memberAvatar, { backgroundColor: theme.primaryLight }]}>
-                    <Text style={[styles.memberAvatarText, { color: theme.primary }]}>
-                      {member.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
+                  {member.avatarUrl ? (
+                    <Image source={{ uri: member.avatarUrl }} style={styles.memberAvatarImg} />
+                  ) : (
+                    <View style={[styles.memberAvatar, { backgroundColor: theme.primaryLight }]}>
+                      <Text style={[styles.memberAvatarText, { color: theme.primary }]}>
+                        {member.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.memberName, { color: theme.textPrimary }]}>
                       {member.name} {member.id === user?.id ? '(Você)' : ''}
@@ -245,7 +339,7 @@ export default function SettingsScreen() {
                 setInviteCode(text.toUpperCase());
                 setJoinError('');
               }}
-              error={joinError}
+              error={joinError || undefined}
               autoCapitalize="characters"
             />
             <Button
@@ -258,15 +352,15 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* SEÇÃO 3: APARÊNCIA & TEMA */}
+        {/* SEÇÃO 3: TEMA & APARÊNCIA */}
         <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}>
           <View style={styles.sectionHeaderRow}>
-            <View style={[styles.sectionIconBadge, { backgroundColor: theme.primaryLight }]}>
+            <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE' }]}>
               <Text style={{ fontSize: 18 }}>🎨</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-                Aparência do Aplicativo
+                Aparência
               </Text>
               <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
                 Escolha o tema para toda a interface
@@ -323,13 +417,128 @@ export default function SettingsScreen() {
             Nexo — Versão 1.0.0
           </Text>
           <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-            Gestão financeira compartilhada e assistente pessoal para o lar.
+            Gestão financeira compartilhada, listas e assistente pessoal para o lar.
           </Text>
           <Text style={[styles.infoNotice, { color: theme.textMuted }]}>
             🔒 Para encerrar a sessão da conta, abra o menu lateral (botão ☰ no topo) e selecione "Sair da Conta".
           </Text>
         </View>
       </ScrollView>
+
+      {/* MODAL ALTERAR FOTO DE PERFIL */}
+      <Modal visible={photoModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <SafeAreaView style={[styles.modalSheet, { backgroundColor: theme.surface }]}>
+            <View style={styles.sheetHandleContainer}>
+              <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+            </View>
+
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Foto de Perfil</Text>
+              <TouchableOpacity onPress={() => setPhotoModalVisible(false)} style={{ padding: 4 }}>
+                <Text style={[styles.closeText, { color: theme.primary }]}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ padding: 20 }}>
+              {/* Preview atual */}
+              <View style={styles.previewContainer}>
+                {newAvatarUrl ? (
+                  <Image source={{ uri: newAvatarUrl }} style={styles.previewAvatar} />
+                ) : user?.avatarUrl ? (
+                  <Image source={{ uri: user.avatarUrl }} style={styles.previewAvatar} />
+                ) : (
+                  <View style={[styles.previewAvatar, { backgroundColor: theme.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={{ fontSize: 28, color: '#FFFFFF', fontWeight: '800' }}>{userInitials}</Text>
+                  </View>
+                )}
+                <Text style={[styles.previewLabel, { color: theme.textSecondary }]}>
+                  {newAvatarUrl ? 'Pré-visualização da nova foto' : 'Sua foto atual'}
+                </Text>
+              </View>
+
+              {/* Input de URL de Imagem */}
+              <Input
+                label="URL da Imagem ou Foto"
+                placeholder="https://exemplo.com/sua-foto.jpg"
+                value={newAvatarUrl}
+                onChangeText={setNewAvatarUrl}
+                autoCapitalize="none"
+              />
+
+              <Button
+                title="Salvar esta Foto"
+                onPress={() => handleSavePhoto()}
+                isLoading={isUpdatingProfile}
+                style={{ marginBottom: 16 }}
+              />
+
+              {/* Avatares Rápidos */}
+              <Text style={[styles.subSectionTitle, { color: theme.textSecondary, marginBottom: 10 }]}>
+                Ou escolha um avatar:
+              </Text>
+              <View style={styles.presetsGrid}>
+                {AVATAR_PRESETS.map((preset, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => {
+                      setNewAvatarUrl(preset);
+                      handleSavePhoto(preset);
+                    }}
+                    style={[
+                      styles.presetItem,
+                      {
+                        borderColor: user?.avatarUrl === preset ? theme.primary : theme.border,
+                        borderWidth: user?.avatarUrl === preset ? 2.5 : 1,
+                      },
+                    ]}
+                  >
+                    <Image source={{ uri: preset }} style={styles.presetImage} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {user?.avatarUrl && (
+                <Button
+                  title="Remover Foto Atual"
+                  variant="ghost"
+                  onPress={() => handleSavePhoto('')}
+                  style={{ marginTop: 20, marginBottom: 30 }}
+                />
+              )}
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* MODAL EDITAR NOME */}
+      <Modal visible={nameModalVisible} animationType="fade" transparent>
+        <View style={styles.modalOverlayCenter}>
+          <View style={[styles.dialogBox, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}>
+            <Text style={[styles.dialogTitle, { color: theme.textPrimary }]}>Editar Nome</Text>
+            <Input
+              placeholder="Seu Nome Completo"
+              value={newName}
+              onChangeText={setNewName}
+              containerStyle={{ marginTop: 12, marginBottom: 16 }}
+            />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Button
+                title="Cancelar"
+                variant="ghost"
+                onPress={() => setNameModalVisible(false)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                title="Salvar"
+                onPress={handleSaveName}
+                isLoading={isUpdatingProfile}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -347,33 +556,71 @@ const styles = StyleSheet.create({
   profileCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 20,
+    padding: 18,
+    borderRadius: 22,
     borderWidth: 1,
-    gap: 14,
+    gap: 16,
   },
-  avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  avatarWrapper: {
+    position: 'relative',
+  },
+  largeAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  largeAvatarFallback: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarText: {
+  largeAvatarText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '800',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
   },
   profileMeta: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   profileName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
+  },
+  editNameBtn: {
+    padding: 2,
   },
   profileEmail: {
     fontSize: 12,
     marginTop: 2,
+  },
+  changePhotoPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  changePhotoPillText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   statusBadge: {
     alignSelf: 'flex-start',
@@ -383,8 +630,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
   },
   sectionCard: {
     padding: 18,
@@ -465,6 +712,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  memberAvatarImg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
   memberAvatarText: {
     fontSize: 13,
     fontWeight: '700',
@@ -528,5 +780,87 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'center',
     marginTop: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '90%',
+  },
+  sheetHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  sheetHandle: {
+    width: 38,
+    height: 5,
+    borderRadius: 3,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  closeText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  previewContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  previewAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 8,
+  },
+  previewLabel: {
+    fontSize: 12,
+  },
+  presetsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  presetItem: {
+    borderRadius: 28,
+    padding: 2,
+  },
+  presetImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  dialogBox: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+  },
+  dialogTitle: {
+    fontSize: 17,
+    fontWeight: '700',
   },
 });

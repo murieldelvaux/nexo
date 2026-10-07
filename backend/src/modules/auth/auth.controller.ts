@@ -49,6 +49,14 @@ export class AuthController {
     return this.authService.getProfile(userId);
   }
 
+  @Put('profile')
+  async updateProfile(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: { name?: string; avatarUrl?: string; phoneNumber?: string },
+  ) {
+    return this.authService.updateProfile(userId, dto);
+  }
+
   @Put('phone')
   async updatePhone(
     @CurrentUser('userId') userId: string,

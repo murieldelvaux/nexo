@@ -26,7 +26,7 @@ export const Input: React.FC<InputProps> = ({
 
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>}
+      {label ? <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text> : null}
       <TextInput
         style={[
           styles.input,
@@ -41,7 +41,7 @@ export const Input: React.FC<InputProps> = ({
         placeholderTextColor={theme.textMuted}
         {...props}
       />
-      {error && <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>}
+      {error ? <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text> : null}
     </View>
   );
 };

@@ -325,6 +325,29 @@ export class AuthService {
     return user;
   }
 
+  async updateProfile(
+    userId: string,
+    data: { name?: string; avatarUrl?: string; phoneNumber?: string },
+  ) {
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.name && { name: data.name }),
+        ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl }),
+        ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber }),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phoneNumber: true,
+        householdId: true,
+        avatarUrl: true,
+      },
+    });
+    return updated;
+  }
+
   async updatePhoneNumber(userId: string, phoneNumber: string) {
     const updated = await this.prisma.user.update({
       where: { id: userId },

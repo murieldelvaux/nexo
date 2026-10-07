@@ -844,7 +844,7 @@ export default function TasksScreen() {
                         { color: scope === RecordScope.SHARED ? theme.primary : theme.textPrimary },
                       ]}
                     >
-                      Lembrete da Casa
+                      Lembrete compartilhado
                     </Text>
                     <Text style={[styles.scopeCardDesc, { color: theme.textSecondary }]}>
                       Compartilhado com o par / lar

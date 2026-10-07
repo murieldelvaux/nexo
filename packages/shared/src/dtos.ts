@@ -36,6 +36,14 @@ export const ResetPasswordDtoSchema = z.object({
 });
 export type ResetPasswordDto = z.infer<typeof ResetPasswordDtoSchema>;
 
+
+export const UpdateProfileDtoSchema = z.object({
+  name: z.string().min(2).optional(),
+  avatarUrl: z.string().optional(),
+  phoneNumber: z.string().optional(),
+});
+export type UpdateProfileDto = z.infer<typeof UpdateProfileDtoSchema>;
+
 export interface AuthResponseDto {
   accessToken: string;
   user: {
@@ -71,6 +79,7 @@ export interface HouseholdDetailDto {
     name: string;
     email: string;
     phoneNumber: string | null;
+    avatarUrl?: string | null;
   }>;
 }
 
@@ -183,6 +192,36 @@ export interface TaskDto {
   updatedAt: string;
 }
 
+
+// -----------------------------------------------------------------------------
+// Shopping List DTOs
+// -----------------------------------------------------------------------------
+export const CreateShoppingItemDtoSchema = z.object({
+  name: z.string().min(1, 'Nome do item obrigatório'),
+  quantity: z.string().optional(),
+  category: z.string().optional(),
+  scope: z.nativeEnum(RecordScope).default(RecordScope.SHARED),
+});
+export type CreateShoppingItemDto = z.infer<typeof CreateShoppingItemDtoSchema>;
+
+export const UpdateShoppingItemDtoSchema = CreateShoppingItemDtoSchema.partial().extend({
+  isCompleted: z.boolean().optional(),
+});
+export type UpdateShoppingItemDto = z.infer<typeof UpdateShoppingItemDtoSchema>;
+
+export interface ShoppingItemDto {
+  id: string;
+  name: string;
+  quantity: string | null;
+  category: string | null;
+  isCompleted: boolean;
+  scope: RecordScope;
+  userId: string;
+  householdId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // -----------------------------------------------------------------------------
 // AI Parser DTOs
 // -----------------------------------------------------------------------------
@@ -197,5 +236,6 @@ export interface ParsedWhatsAppResultDto {
     dueDate?: string;
     hasSpecificTime?: boolean;
     notes?: string;
+    items?: Array<{ name: string; quantity?: string; category?: string }>;
   };
 }

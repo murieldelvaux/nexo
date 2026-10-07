@@ -42,6 +42,11 @@ export const authService = {
     return data;
   },
 
+  async updateProfile(dto: { name?: string; avatarUrl?: string; phoneNumber?: string }) {
+    const { data } = await apiClient.put('/auth/profile', dto);
+    return data;
+  },
+
   async updatePhone(phoneNumber: string) {
     const { data } = await apiClient.put('/auth/phone', { phoneNumber });
     return data;

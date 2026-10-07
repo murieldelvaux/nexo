@@ -57,11 +57,18 @@ const NAV_ITEMS: NavItem[] = [
     icon: '📌',
   },
   {
+    id: 'shopping',
+    title: 'Lista de Compras',
+    subtitle: 'Mercado, feira e casa',
+    route: '/(tabs)/shopping-list',
+    icon: '🛒',
+  },
+  {
     id: 'settings',
-    title: 'Configurações & Lar',
-    subtitle: 'WhatsApp e código de convite',
+    title: 'Meu Perfil',
+    subtitle: 'Foto, WhatsApp e lar',
     route: '/(tabs)/settings',
-    icon: '⚙️',
+    icon: '👤',
   },
 ];
 
@@ -104,11 +111,11 @@ export function AppDrawer() {
 
   const userInitials = user?.name
     ? user.name
-        .split(' ')
-        .map((n: string) => n[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()
+      .split(' ')
+      .map((n: string) => n[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase()
     : 'NX';
 
   return (
@@ -144,7 +151,7 @@ export function AppDrawer() {
               <View>
                 <Text style={[styles.brandTitle, { color: theme.textPrimary }]}>Nexo</Text>
                 <Text style={[styles.brandSubtitle, { color: theme.textSecondary }]}>
-                  Gestão Inteligente do Lar
+                  Gestão Inteligente individual e compartilhada
                 </Text>
               </View>
             </View>
@@ -160,9 +167,13 @@ export function AppDrawer() {
 
           {/* PERFIL DO USUÁRIO & ESPAÇO */}
           <View style={[styles.userSection, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}>
-            <View style={[styles.avatarCircle, { backgroundColor: theme.primary }]}>
-              <Text style={styles.avatarText}>{userInitials}</Text>
-            </View>
+            {user?.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={[styles.avatarCircle, { backgroundColor: theme.primary }]}>
+                <Text style={styles.avatarText}>{userInitials}</Text>
+              </View>
+            )}
             <View style={styles.userInfo}>
               <Text style={[styles.userName, { color: theme.textPrimary }]} numberOfLines={1}>
                 {user?.name || 'Usuário Nexo'}
@@ -379,6 +390,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     gap: 12,
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   avatarCircle: {
     width: 44,

@@ -238,6 +238,36 @@ DIRETRIZES DE RECONHECIMENTO:
 
     const scope = isShared ? RecordScope.SHARED : RecordScope.PRIVATE;
 
+    // 0. PRIORIDADE: Detecção de Lista de Compras
+    if (
+      lower.includes('lista de compras') ||
+      lower.includes('lista de mercado') ||
+      lower.includes('adicionar na lista') ||
+      lower.includes('colocar na lista') ||
+      (lower.startsWith('comprar ') && amount === undefined)
+    ) {
+      const clean = text
+        .replace(/(?:adicionar|colocar|por|bota|botar)?\s*(?:na|pra|para)?\s*lista\s*(?:de\s*(?:compras|mercado))?/gi, '')
+        .replace(/^comprar\s*/gi, '')
+        .trim();
+
+      const rawItems = clean.split(/[\n,;•-]+/).map((s) => s.trim()).filter(Boolean);
+      const items = (rawItems.length > 0 ? rawItems : [clean]).map((it) => ({
+        name: it.charAt(0).toUpperCase() + it.slice(1),
+        quantity: '1',
+      }));
+
+      return {
+        intent: AIIntent.CREATE_SHOPPING_ITEM,
+        confidence: 0.9,
+        data: {
+          title: 'Lista de Compras',
+          scope,
+          items,
+        },
+      };
+    }
+
     // 1. PRIORIDADE MÁXIMA: Detecção de Meta
     if (
       lower.includes('meta') ||

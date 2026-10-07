@@ -151,7 +151,35 @@ export class WhatsappService {
           message.from,
           `🎯 *Meta Cadastrada!*${sourceNotice}\n\n🏷️ *Meta:* ${goal.title}\n💰 *Alvo:* R$ ${formattedAmount}\n👥 *Escopo:* ${scopeLabel}\n\nJá atualizado no seu painel de Metas no app Nexo! 📲`,
         );
-      } else if (parsed.intent === AIIntent.CREATE_TASK) {
+            } else if (parsed.intent === AIIntent.CREATE_SHOPPING_ITEM) {
+        const itemsToCreate = parsed.data.items && parsed.data.items.length > 0
+          ? parsed.data.items
+          : [{ name: parsed.data.title || 'Item de compra', quantity: '1' }];
+
+        const createdNames: string[] = [];
+        for (const it of itemsToCreate) {
+          if (!it.name || !it.name.trim()) continue;
+          await this.prisma.shoppingItem.create({
+            data: {
+              name: it.name.trim(),
+              quantity: it.quantity ? it.quantity.trim() : '1',
+              category: it.category ? it.category.trim() : 'Geral',
+              scope: isShared ? RecordScope.SHARED : RecordScope.PRIVATE,
+              userId: user.id,
+              householdId: isShared ? user.householdId : null,
+            },
+          });
+          createdNames.push(`• ${it.name}${it.quantity && it.quantity !== '1' ? ` (${it.quantity})` : ''}`);
+        }
+
+        const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
+        const itemsText = createdNames.slice(0, 15).join('\n') + (createdNames.length > 15 ? `\n...e mais ${createdNames.length - 15} itens` : '');
+
+        await this.sendWhatsAppMessage(
+          message.from,
+          `🛒 *Lista de Compras Atualizada!*${sourceNotice}\n\n${itemsText}\n\n🏷️ ${scopeLabel}\n\nJá sincronizado no app Nexo! Quando comprar, basta dar check no app! ✅📲`,
+        );
+} else if (parsed.intent === AIIntent.CREATE_TASK) {
         const dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
         const hasSpecificTime = !!parsed.data.hasSpecificTime;
 
