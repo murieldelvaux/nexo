@@ -15,10 +15,13 @@ import { ScopeBadge } from '../../src/components/ScopeBadge';
 import { LoadingState } from '../../src/components/LoadingState';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useGoals } from '../../src/hooks/useGoals';
+import { useTheme } from '../../src/theme/ThemeContext';
+import { AppHeader } from '../../src/components/AppHeader';
 import { formatCurrency, formatDate } from '../../src/utils/format';
 import { RecordScope, GoalStatus, GoalDto } from '../../../packages/shared/src';
 
 export default function GoalsScreen() {
+  const { theme, isDark } = useTheme();
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [progressModalVisible, setProgressModalVisible] = useState(false);
@@ -206,7 +209,8 @@ export default function GoalsScreen() {
   if (isLoading) return <LoadingState />;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <AppHeader title="Nexo" subtitle="Metas Financeiras" />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -304,6 +308,16 @@ export default function GoalsScreen() {
           );
         }}
       />
+
+      {/* FAB FLUTUANTE NA ZONA DO POLEGAR */}
+      <TouchableOpacity
+        style={[styles.fabButton, { backgroundColor: theme.primary }, theme.fabShadow]}
+        onPress={handleOpenCreate}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.fabIcon}>＋</Text>
+        <Text style={styles.fabText}>Nova Meta</Text>
+      </TouchableOpacity>
 
       {/* Modal Criar Meta */}
       <Modal visible={createModalVisible} animationType="slide" transparent>
@@ -531,6 +545,35 @@ export default function GoalsScreen() {
 }
 
 const styles = StyleSheet.create({
+  fabButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 28,
+    gap: 8,
+  },
+  fabIcon: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  fabText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  fabShadow: {
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+
   container: { flex: 1, backgroundColor: Colors.background },
   header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

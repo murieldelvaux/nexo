@@ -17,8 +17,11 @@ import { Card } from '../../src/components/Card';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useHousehold } from '../../src/hooks/useHousehold';
 import { showConfirm, showMessage } from '../../src/utils/alert';
+import { useTheme } from '../../src/theme/ThemeContext';
+import { AppHeader } from '../../src/components/AppHeader';
 
 export default function SettingsScreen() {
+  const { theme, isDark, toggleTheme } = useTheme();
   const router = useRouter();
   const { user, logout, updatePhone, isUpdatingPhone } = useAuth();
   const { household, joinHousehold, isJoining } = useHousehold();
@@ -82,7 +85,8 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <AppHeader title="Nexo" subtitle="Ajustes do Lar & Conta" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>Configurações</Text>

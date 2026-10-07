@@ -17,6 +17,8 @@ import {
 } from 'react-native';
 import { RecordScope, TaskDto } from '../../../packages/shared/src';
 import { useTasks } from '../../src/hooks/useTasks';
+import { useTheme } from '../../src/theme/ThemeContext';
+import { AppHeader } from '../../src/components/AppHeader';
 
 const NexoLogo = require('../../assets/nexo-logo.png');
 
@@ -110,9 +112,7 @@ export const DarkTheme = {
 type FilterCategory = 'ALL' | 'PENDING' | 'TODAY' | 'SHARED' | 'COMPLETED';
 
 export default function TasksScreen() {
-  const systemScheme = useColorScheme();
-  const [isDarkMode, setIsDarkMode] = useState(systemScheme === 'dark');
-  const theme = isDarkMode ? DarkTheme : LightTheme;
+  const { theme, isDark: isDarkMode } = useTheme();
 
   // Modais de Criação e Edição
   const [createModalVisible, setCreateModalVisible] = useState(false);
@@ -427,30 +427,7 @@ export default function TasksScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
 
-      {/* HEADER SUPERIOR COM LOGO E ALTERNÂNCIA DE TEMA */}
-      <View style={[styles.topBar, { borderBottomColor: theme.border }]}>
-        <View style={styles.brandContainer}>
-          <Image source={NexoLogo} style={styles.logoImage} resizeMode="contain" />
-          <View style={styles.brandMeta}>
-            <Text style={[styles.brandName, { color: theme.textPrimary }]}>Nexo</Text>
-          </View>
-        </View>
-
-        {/* Toggle Light / Dark Mode */}
-        <TouchableOpacity
-          style={[
-            styles.themeToggleBtn,
-            { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
-          ]}
-          onPress={() => setIsDarkMode((prev) => !prev)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.themeToggleIcon}>{isDarkMode ? '🌙' : '☀️'}</Text>
-          <Text style={[styles.themeToggleText, { color: theme.textPrimary }]}>
-            {isDarkMode ? 'Dark' : 'Light'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <AppHeader title="Nexo" subtitle="Rotina & Lembretes" />
 
       {/* TÍTULO PRINCIPAL (iOS HIG TYPOGRAPHY) & CARDS DE RESUMO */}
       <View style={styles.titleSection}>

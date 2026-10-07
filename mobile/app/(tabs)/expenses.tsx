@@ -15,6 +15,8 @@ import { ScopeBadge } from '../../src/components/ScopeBadge';
 import { LoadingState } from '../../src/components/LoadingState';
 import { EmptyState } from '../../src/components/EmptyState';
 import { CalendarRangePickerModal } from '../../src/components/CalendarRangePickerModal';
+import { useTheme } from '../../src/theme/ThemeContext';
+import { AppHeader } from '../../src/components/AppHeader';
 import { useExpenses } from '../../src/hooks/useExpenses';
 import { formatCurrency, formatDate, getCategoryLabel } from '../../src/utils/format';
 import { ExpenseCategory, RecordScope, ExpenseDto } from '../../../packages/shared/src';
@@ -25,6 +27,7 @@ const MONTH_NAMES = [
 ];
 
 export default function ExpensesScreen() {
+  const { theme, isDark } = useTheme();
   const today = new Date();
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1); // 1-12
@@ -260,7 +263,8 @@ export default function ExpensesScreen() {
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <AppHeader title="Nexo" subtitle="Gastos & Extrato" />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -443,6 +447,16 @@ export default function ExpensesScreen() {
           </TouchableOpacity>
         )}
       />
+
+      {/* FAB FLUTUANTE NA ZONA DO POLEGAR */}
+      <TouchableOpacity
+        style={[styles.fabButton, { backgroundColor: theme.primary }, theme.fabShadow]}
+        onPress={handleOpenCreate}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.fabIcon}>＋</Text>
+        <Text style={styles.fabText}>Novo Gasto</Text>
+      </TouchableOpacity>
 
       {/* Modal de Calendário MUI */}
       <CalendarRangePickerModal
@@ -689,6 +703,35 @@ export default function ExpensesScreen() {
 }
 
 const styles = StyleSheet.create({
+  fabButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 28,
+    gap: 8,
+  },
+  fabIcon: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  fabText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  fabShadow: {
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+
   container: { flex: 1, backgroundColor: Colors.background },
   header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

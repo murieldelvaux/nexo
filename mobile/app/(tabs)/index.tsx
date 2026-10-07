@@ -7,23 +7,21 @@ import {
   TouchableOpacity,
   RefreshControl,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors } from '../../src/theme/colors';
-import { Card } from '../../src/components/Card';
-import { ScopeBadge } from '../../src/components/ScopeBadge';
-import { LoadingState } from '../../src/components/LoadingState';
-import { ErrorState } from '../../src/components/ErrorState';
-import { EmptyState } from '../../src/components/EmptyState';
 import { useExpenses } from '../../src/hooks/useExpenses';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useHousehold } from '../../src/hooks/useHousehold';
 import { formatCurrency, formatDate, getCategoryLabel } from '../../src/utils/format';
+import { useTheme } from '../../src/theme/ThemeContext';
+import { AppHeader } from '../../src/components/AppHeader';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { household } = useHousehold();
+  const { theme, isDark } = useTheme();
 
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [activeScope, setActiveScope] = useState<'ALL' | 'SHARED' | 'PRIVATE'>('ALL');
@@ -33,118 +31,235 @@ export default function DashboardScreen() {
     scope: activeScope,
   });
 
-  if (isLoading) {
-    return <LoadingState message="Carregando visão consolidada..." />;
-  }
-
-  if (isError) {
-    return <ErrorState onRetry={refetch} />;
-  }
+  const totalGeral = (summary?.totalShared || 0) + (summary?.totalPrivate || 0);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.householdName}>
-              {household?.name ? `🏠 ${household.name}` : '👤 Espaço Pessoal'}
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* HEADER PRINCIPAL COM MENU LATERAL HAMBÚRGUER & LOGO */}
+      <AppHeader
+        title="Nexo"
+        subtitle={household?.name ? `🏠 ${household.name}` : 'Visão Geral do Lar'}
+      />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={theme.primary} />}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* BOAS-VINDAS & SAUDAÇÃO */}
+        <View style={styles.welcomeSection}>
+          <Text style={[styles.welcomeGreeting, { color: theme.textSecondary }]}>
+            Bem-vindo(a) de volta,
+          </Text>
+          <Text style={[styles.userNameTitle, { color: theme.textPrimary }]}>
+            {user?.name || 'Gestão do Lar'} 👋
+          </Text>
+        </View>
+
+        {/* HERO CARD FINANCEIRO (BALANÇO GERAL) */}
+        <View
+          style={[
+            styles.heroCard,
+            {
+              backgroundColor: isDark ? '#151D2A' : '#FFFFFF',
+              borderColor: theme.border,
+            },
+            theme.cardShadow,
+          ]}
+        >
+          <View style={styles.heroTop}>
+            <Text style={[styles.heroLabel, { color: theme.textSecondary }]}>
+              Total de Gastos no Mês
             </Text>
-            <Text style={styles.greeting}>Olá, {user?.name || 'Nexo'}</Text>
+            <View style={[styles.statusPill, { backgroundColor: theme.primaryLight }]}>
+              <Text style={[styles.statusPillText, { color: theme.primary }]}>
+                {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+              </Text>
+            </View>
           </View>
-          <TouchableOpacity
-            style={styles.whatsAppBadge}
-            onPress={() => router.push('/(tabs)/settings')}
-          >
-            <Text style={styles.whatsAppBadgeText}>💬 WhatsApp Conectado</Text>
-          </TouchableOpacity>
+
+          <Text style={[styles.heroValue, { color: theme.textPrimary }]}>
+            {formatCurrency(totalGeral)}
+          </Text>
+
+          {/* DIVISÃO COMPARTILHADA VS PRIVADA */}
+          <View style={[styles.splitMetricsRow, { borderTopColor: theme.border }]}>
+            <View style={styles.splitMetricItem}>
+              <View style={styles.splitIconLabel}>
+                <Text style={{ fontSize: 13 }}>🏠</Text>
+                <Text style={[styles.splitLabel, { color: theme.textSecondary }]}>Gastos da Casa</Text>
+              </View>
+              <Text style={[styles.splitValue, { color: theme.primary }]}>
+                {formatCurrency(summary?.totalShared || 0)}
+              </Text>
+              <Text style={[styles.splitSub, { color: theme.textMuted }]}>
+                Sua parte: {formatCurrency(summary?.userShareOfShared || 0)}
+              </Text>
+            </View>
+
+            <View style={[styles.verticalDivider, { backgroundColor: theme.border }]} />
+
+            <View style={styles.splitMetricItem}>
+              <View style={styles.splitIconLabel}>
+                <Text style={{ fontSize: 13 }}>🔒</Text>
+                <Text style={[styles.splitLabel, { color: theme.textSecondary }]}>Seus Gastos</Text>
+              </View>
+              <Text style={[styles.splitValue, { color: theme.textPrimary }]}>
+                {formatCurrency(summary?.totalPrivate || 0)}
+              </Text>
+              <Text style={[styles.splitSub, { color: theme.textMuted }]}>
+                100% Individual
+              </Text>
+            </View>
+          </View>
         </View>
 
-        {/* Cards de Resumo */}
-        <View style={styles.cardsRow}>
-          <Card style={styles.summaryCard} variant="bordered">
-            <Text style={styles.cardLabel}>Gastos da Casa</Text>
-            <Text style={styles.cardValue}>{formatCurrency(summary.totalShared)}</Text>
-            <Text style={styles.cardSub}>
-              Sua parte (50%): {formatCurrency(summary.userShareOfShared)}
-            </Text>
-          </Card>
-
-          <Card style={styles.summaryCard} variant="bordered">
-            <Text style={styles.cardLabel}>Meus Gastos</Text>
-            <Text style={styles.cardValue}>{formatCurrency(summary.totalPrivate)}</Text>
-            <Text style={styles.cardSubPrivate}>🔒 Privado</Text>
-          </Card>
-        </View>
-      </View>
-
-      {/* Filtro de Escopo */}
-      <View style={styles.filterContainer}>
-        {(
-          [
-            { id: 'ALL', label: 'Tudo' },
-            { id: 'SHARED', label: '🏠 Compartilhado' },
-            { id: 'PRIVATE', label: '🔒 Privado' },
-          ] as const
-        ).map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={[styles.filterChip, activeScope === item.id && styles.filterChipActive]}
-            onPress={() => setActiveScope(item.id)}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                activeScope === item.id && styles.filterTextActive,
-              ]}
+        {/* ATALHOS RÁPIDOS NA ZONA DO POLEGAR */}
+        <View style={styles.actionPillsSection}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+            Ações Rápidas
+          </Text>
+          <View style={styles.actionPillsRow}>
+            <TouchableOpacity
+              style={[styles.actionPillBtn, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}
+              onPress={() => router.push('/(tabs)/expenses')}
+              activeOpacity={0.75}
             >
-              {item.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+              <Text style={styles.actionPillEmoji}>💸</Text>
+              <Text style={[styles.actionPillText, { color: theme.textPrimary }]}>+ Gasto</Text>
+            </TouchableOpacity>
 
-      {/* Lista de Atividades Recentes */}
-      <FlatList
-        data={expenses}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={Colors.primary} />
-        }
-        ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <Text style={styles.sectionTitle}>Últimos Lançamentos</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/expenses')}>
-              <Text style={styles.sectionLink}>Ver todos</Text>
+            <TouchableOpacity
+              style={[styles.actionPillBtn, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}
+              onPress={() => router.push('/(tabs)/goals')}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.actionPillEmoji}>🎯</Text>
+              <Text style={[styles.actionPillText, { color: theme.textPrimary }]}>+ Meta</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionPillBtn, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}
+              onPress={() => router.push('/(tabs)/tasks')}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.actionPillEmoji}>📌</Text>
+              <Text style={[styles.actionPillText, { color: theme.textPrimary }]}>+ Lembrete</Text>
             </TouchableOpacity>
           </View>
-        }
-        ListEmptyComponent={
-          <EmptyState
-            title="Nenhum gasto neste filtro"
-            description="Mande uma mensagem no WhatsApp como 'Gastei 40 no mercado' ou registre manualmente."
-            actionTitle="Novo Gasto Manual"
-            onAction={() => router.push('/(tabs)/expenses')}
-          />
-        }
-        renderItem={({ item }) => (
-          <View style={styles.expenseItem}>
-            <View style={styles.expenseLeft}>
-              <Text style={styles.expenseDesc}>{item.description}</Text>
-              <View style={styles.metaRow}>
-                <Text style={styles.expenseMeta}>
-                  {getCategoryLabel(item.category)} • {formatDate(item.date)}
-                </Text>
-                <ScopeBadge scope={item.scope} authorName={item.author?.name} />
-              </View>
-            </View>
-            <View style={styles.expenseRight}>
-              <Text style={styles.expenseAmount}>{formatCurrency(item.amount)}</Text>
-            </View>
+        </View>
+
+        {/* FEED DE ATIVIDADES RECENTES */}
+        <View style={styles.activitySection}>
+          <View style={styles.activityHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              Últimos Lançamentos
+            </Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/expenses')}>
+              <Text style={[styles.viewAllText, { color: theme.primary }]}>Ver Todos ➔</Text>
+            </TouchableOpacity>
           </View>
-        )}
-        contentContainerStyle={styles.listContent}
-      />
+
+          {/* Filtro Rápido de Escopo */}
+          <View style={styles.scopeFilterRow}>
+            {(['ALL', 'SHARED', 'PRIVATE'] as const).map((s) => {
+              const isActive = activeScope === s;
+              const labels = { ALL: 'Todos', SHARED: '🏠 Compartilhados', PRIVATE: '🔒 Pessoais' };
+              return (
+                <TouchableOpacity
+                  key={s}
+                  style={[
+                    styles.scopeChip,
+                    {
+                      backgroundColor: isActive ? theme.primary : theme.surface,
+                      borderColor: isActive ? theme.primary : theme.border,
+                    },
+                  ]}
+                  onPress={() => setActiveScope(s)}
+                >
+                  <Text
+                    style={[
+                      styles.scopeChipText,
+                      { color: isActive ? '#FFFFFF' : theme.textSecondary, fontWeight: isActive ? '700' : '500' },
+                    ]}
+                  >
+                    {labels[s]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Lista de Gastos Recentes */}
+          {expenses && expenses.length > 0 ? (
+            expenses.slice(0, 5).map((item) => (
+              <View
+                key={item.id}
+                style={[
+                  styles.expenseRowItem,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                  theme.cardShadow,
+                ]}
+              >
+                <View style={[styles.categoryIconBadge, { backgroundColor: theme.surfaceSubtle }]}>
+                  <Text style={{ fontSize: 18 }}>🧾</Text>
+                </View>
+
+                <View style={styles.expenseInfoCol}>
+                  <Text style={[styles.expenseTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                    {item.description}
+                  </Text>
+                  <View style={styles.expenseSubRow}>
+                    <Text style={[styles.expenseCategoryText, { color: theme.textSecondary }]}>
+                      {getCategoryLabel(item.category)}
+                    </Text>
+                    <Text style={[styles.expenseDot, { color: theme.textMuted }]}>•</Text>
+                    <Text style={[styles.expenseDateText, { color: theme.textMuted }]}>
+                      {formatDate(item.date)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.expenseAmountCol}>
+                  <Text style={[styles.expenseAmountText, { color: theme.textPrimary }]}>
+                    {formatCurrency(item.amount)}
+                  </Text>
+                  <View
+                    style={[
+                      styles.miniScopeTag,
+                      {
+                        backgroundColor:
+                          item.scope === 'SHARED' ? theme.tagSharedBg : theme.tagPrivateBg,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.miniScopeTagText,
+                        {
+                          color:
+                            item.scope === 'SHARED'
+                              ? theme.tagSharedText
+                              : theme.tagPrivateText,
+                        },
+                      ]}
+                    >
+                      {item.scope === 'SHARED' ? 'Casa' : 'Pessoal'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={[styles.emptyBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={styles.emptyEmoji}>🍃</Text>
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                Nenhum gasto registrado neste mês ainda.
+              </Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -152,158 +267,212 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  header: {
+  scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 40,
+    gap: 20,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+  welcomeSection: {
+    marginTop: 4,
   },
-  householdName: {
-    color: Colors.textSecondary,
+  welcomeGreeting: {
     fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '500',
   },
-  greeting: {
-    color: Colors.text,
-    fontSize: 26,
+  userNameTitle: {
+    fontSize: 24,
     fontWeight: '800',
+    letterSpacing: -0.4,
     marginTop: 2,
   },
-  whatsAppBadge: {
-    backgroundColor: 'rgba(48, 209, 88, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+  heroCard: {
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(48, 209, 88, 0.3)',
+    padding: 20,
   },
-  whatsAppBadgeText: {
-    color: Colors.success,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  cardsRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  summaryCard: {
-    flex: 1,
-    padding: 14,
-  },
-  cardLabel: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  cardValue: {
-    color: Colors.text,
-    fontSize: 19,
-    fontWeight: '800',
-    marginTop: 4,
-  },
-  cardSub: {
-    color: Colors.primary,
-    fontSize: 11,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  cardSubPrivate: {
-    color: Colors.textMuted,
-    fontSize: 11,
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 8,
-    marginBottom: 8,
-  },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  filterText: {
-    color: Colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  filterTextActive: {
-    color: '#FFF',
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  listHeader: {
+  heroTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 14,
+    marginBottom: 8,
+  },
+  heroLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  heroValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 16,
+  },
+  splitMetricsRow: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: 16,
+    alignItems: 'center',
+  },
+  splitMetricItem: {
+    flex: 1,
+  },
+  splitIconLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  splitLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  splitValue: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  splitSub: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  verticalDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 40,
+    marginHorizontal: 12,
+  },
+  actionPillsSection: {
+    gap: 10,
   },
   sectionTitle: {
-    color: Colors.text,
-    fontSize: 17,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  actionPillsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionPillBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 8,
+  },
+  actionPillEmoji: {
+    fontSize: 18,
+  },
+  actionPillText: {
+    fontSize: 13,
     fontWeight: '700',
   },
-  sectionLink: {
-    color: Colors.primary,
-    fontSize: 13,
-    fontWeight: '600',
+  activitySection: {
+    gap: 12,
   },
-  expenseItem: {
+  activityHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
-  expenseLeft: {
-    flex: 1,
-    marginRight: 12,
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
-  expenseDesc: {
-    color: Colors.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  metaRow: {
+  scopeFilterRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
-    marginTop: 4,
   },
-  expenseMeta: {
-    color: Colors.textMuted,
+  scopeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  scopeChipText: {
     fontSize: 12,
   },
-  expenseRight: {
+  expenseRowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 12,
+  },
+  categoryIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expenseInfoCol: {
+    flex: 1,
+  },
+  expenseTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  expenseSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    gap: 4,
+  },
+  expenseCategoryText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  expenseDot: {
+    fontSize: 11,
+  },
+  expenseDateText: {
+    fontSize: 11,
+  },
+  expenseAmountCol: {
     alignItems: 'flex-end',
   },
-  expenseAmount: {
-    color: Colors.text,
+  expenseAmountText: {
     fontSize: 15,
+    fontWeight: '800',
+  },
+  miniScopeTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  miniScopeTagText: {
+    fontSize: 10,
     fontWeight: '700',
+  },
+  emptyBox: {
+    padding: 28,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  emptyEmoji: {
+    fontSize: 28,
+  },
+  emptyText: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

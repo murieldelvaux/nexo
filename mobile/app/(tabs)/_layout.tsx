@@ -1,29 +1,31 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Text, Platform } from 'react-native';
-import { Colors } from '../../src/theme/colors';
+import { useTheme } from '../../src/theme/ThemeContext';
 
 // Detecta altura segura da tab bar de forma cross-platform
 const TAB_BAR_HEIGHT = Platform.select({ ios: 88, default: 64 }) ?? 64;
 const TAB_BAR_PADDING_BOTTOM = Platform.select({ ios: 28, default: 10 }) ?? 10;
 
 export default function TabLayout() {
+  const { theme } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.border,
+          backgroundColor: theme.surface,
+          borderTopColor: theme.border,
           height: TAB_BAR_HEIGHT,
           paddingTop: 8,
           paddingBottom: TAB_BAR_PADDING_BOTTOM,
         },
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.textMuted,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: '700',
         },
       }}
     >
@@ -58,7 +60,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Config',
+          title: 'Ajustes',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>⚙️</Text>,
         }}
       />

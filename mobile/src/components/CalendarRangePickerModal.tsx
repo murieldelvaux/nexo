@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
+import { useTheme } from '../theme/ThemeContext';
 import { Colors } from '../theme/colors';
 import { Button } from './Button';
 
@@ -55,6 +56,7 @@ export function CalendarRangePickerModal({
   onApply,
   onClear,
 }: CalendarRangePickerModalProps) {
+  const { theme: Colors, isDark } = useTheme();
   const today = useMemo(() => new Date(), []);
   const todayYmd = useMemo(() => {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
