@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { CreateTaskDto } from '../../../../packages/shared/src';
+import { CreateTaskDto, UpdateTaskDto } from '../../../../packages/shared/src';
 
 @Controller('tasks')
 export class TasksController {
@@ -18,6 +18,15 @@ export class TasksController {
   @Get()
   async findAll(@CurrentUser('userId') userId: string) {
     return this.tasksService.findAll(userId);
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @Body() dto: UpdateTaskDto,
+  ) {
+    return this.tasksService.update(id, userId, dto);
   }
 
   @Put(':id/toggle')

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { CreateGoalDto, UpdateGoalProgressDto, RecordScope, GoalStatus } from '../../../../packages/shared/src';
+import { CreateGoalDto, UpdateGoalProgressDto, UpdateGoalDto, RecordScope, GoalStatus } from '../../../../packages/shared/src';
 
 @Injectable()
 export class GoalsService {
@@ -62,6 +62,25 @@ export class GoalsService {
       data: {
         currentAmount: newCurrent,
         status: isCompleted ? GoalStatus.COMPLETED : goal.status,
+      },
+    });
+
+    return this.mapGoal(updated);
+  }
+
+  async update(id: string, userId: string, dto: UpdateGoalDto) {
+    const goal = await this.prisma.goal.findUnique({ where: { id } });
+    if (!goal) throw new NotFoundException('Meta não encontrada');
+
+    const updated = await this.prisma.goal.update({
+      where: { id },
+      data: {
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.targetAmount !== undefined && { targetAmount: dto.targetAmount }),
+        ...(dto.currentAmount !== undefined && { currentAmount: dto.currentAmount }),
+        ...(dto.targetDate !== undefined && { targetDate: dto.targetDate ? new Date(dto.targetDate) : null }),
+        ...(dto.status !== undefined && { status: dto.status as any }),
+        ...(dto.scope !== undefined && { scope: dto.scope as any }),
       },
     });
 

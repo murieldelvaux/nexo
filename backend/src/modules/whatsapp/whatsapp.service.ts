@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { PrismaService } from '../../database/prisma.service';
 import { AiParserService } from '../ai-parser/ai-parser.service';
-import { AIIntent, RecordScope, ExpenseCategory } from '../../../../packages/shared/src';
+import { AIIntent, RecordScope, ExpenseCategory, ParsedWhatsAppResultDto } from '../../../../packages/shared/src';
 
 @Injectable()
 export class WhatsappService {
@@ -13,7 +13,7 @@ export class WhatsappService {
     private prisma: PrismaService,
     private aiParser: AiParserService,
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async processEvent(payload: any) {
     try {
@@ -21,15 +21,19 @@ export class WhatsappService {
       const changes = entry?.changes?.[0]?.value;
       const message = changes?.messages?.[0];
 
-      if (!message || message.type !== 'text') {
+      if (!message) {
+        return;
+      }
+
+      const messageType = message.type;
+      const supportedTypes = ['text', 'image', 'audio', 'voice'];
+      if (!supportedTypes.includes(messageType)) {
+        this.logger.log(`Ignoring unsupported message type: ${messageType}`);
         return;
       }
 
       const messageId = message.id;
       const fromNumber = '+' + message.from; // formato E.164 (ex: +5511999999999)
-      const textBody = message.text.body;
-
-      this.logger.log(`WhatsApp message received from ${fromNumber}: "${textBody}"`);
 
       // 1. Idempotência: Checar se o evento já foi processado
       const alreadyProcessed = await this.prisma.processedWebhookEvent.findUnique({
@@ -44,63 +48,89 @@ export class WhatsappService {
         data: { id: messageId },
       });
 
-      // 2. Identificar Usuário pelo Telefone (robusto a máscaras, espaços e 9º dígito)
+      // 2. Identificar Usuário pelo Telefone
       const user = await this.findUserByPhone(message.from);
 
       if (!user) {
         await this.sendWhatsAppMessage(
           message.from,
-          `Olá! 👋 Seu número (${fromNumber}) ainda não está vinculado a uma conta Nexo.\n\nAcesse o app e cadastre seu telefone em Perfil para começar a registrar gastos e lembretes por aqui!`,
+          `Olá! 👋 Seu número (${fromNumber}) ainda não está vinculado a uma conta Nexo.\n\nAcesse o app e cadastre seu telefone em Perfil para começar a registrar gastos, metas e lembretes por aqui!`,
         );
         return;
       }
 
-      // 3. Processar mensagem com o AI Parser
-      const parsed = await this.aiParser.parseMessage(textBody);
+      // 3. Processar mensagem (Texto, Imagem/Comprovante ou Áudio)
+      let parsed: ParsedWhatsAppResultDto;
+      let mediaSourceLabel = '';
+
+      if (messageType === 'text') {
+        const textBody = message.text?.body || '';
+        this.logger.log(`WhatsApp text received from ${fromNumber}: "${textBody}"`);
+        parsed = await this.aiParser.parseMessage(textBody);
+      } else if (messageType === 'image') {
+        const mediaId = message.image?.id;
+        const caption = message.image?.caption || '';
+        const mimeType = message.image?.mime_type || 'image/jpeg';
+        this.logger.log(`WhatsApp image received from ${fromNumber} (ID: ${mediaId}, caption: "${caption}")`);
+
+        const media = await this.downloadMedia(mediaId);
+        if (!media) {
+          await this.sendWhatsAppMessage(
+            message.from,
+            '⚠️ Não foi possível baixar a foto/comprovante. Por favor, tente enviar novamente.',
+          );
+          return;
+        }
+
+        mediaSourceLabel = '📸 Comprovante/Foto';
+        parsed = await this.aiParser.parseMedia(media.buffer, media.mimeType || mimeType, caption);
+      } else if (messageType === 'audio' || messageType === 'voice') {
+        const audioObj = message.audio || message.voice;
+        const mediaId = audioObj?.id;
+        const mimeType = audioObj?.mime_type || 'audio/ogg';
+        this.logger.log(`WhatsApp audio received from ${fromNumber} (ID: ${mediaId})`);
+
+        const media = await this.downloadMedia(mediaId);
+        if (!media) {
+          await this.sendWhatsAppMessage(
+            message.from,
+            '⚠️ Não foi possível processar o áudio enviado. Por favor, tente falar mais perto do microfone ou enviar por texto.',
+          );
+          return;
+        }
+
+        mediaSourceLabel = '🎙️ Áudio de Voz';
+        parsed = await this.aiParser.parseMedia(media.buffer, media.mimeType || mimeType);
+      } else {
+        return;
+      }
 
       // 4. Executar a ação de domínio com base na intenção
-      if (parsed.intent === AIIntent.CREATE_EXPENSE && parsed.data.amount) {
-        const isShared = parsed.data.scope === RecordScope.SHARED && !!user.householdId;
+      // Regra de Ouro: Escopo é PRIVATE por padrão. Só é SHARED se o parser indicar SHARED E o usuário tiver householdId.
+      const isShared = parsed.data.scope === RecordScope.SHARED && !!user.householdId;
+      const scopeLabel = isShared ? '🏠 Compartilhado' : '🔒 Privado (Pessoal)';
 
+      if (parsed.intent === AIIntent.CREATE_EXPENSE && parsed.data.amount) {
         const expense = await this.prisma.expense.create({
           data: {
             description: parsed.data.title,
             amount: parsed.data.amount,
             category: parsed.data.category || ExpenseCategory.OTHER,
             scope: isShared ? RecordScope.SHARED : RecordScope.PRIVATE,
-            rawSource: 'whatsapp_message',
+            rawSource: mediaSourceLabel ? `whatsapp_${messageType}` : 'whatsapp_message',
             userId: user.id,
             householdId: isShared ? user.householdId : null,
           },
         });
 
-        const scopeLabel = isShared ? '🏠 Compartilhado' : '🔒 Privado (Pessoal)';
         const formattedAmount = Number(expense.amount).toFixed(2).replace('.', ',');
+        const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
 
         await this.sendWhatsAppMessage(
           message.from,
-          `✅ *Gasto Registrado!*\n\n📝 *${expense.description}*\n💰 *R$ ${formattedAmount}*\n🏷️ *Escopo:* ${scopeLabel}\n\nJá sincronizado no seu app Nexo! 📲`,
-        );
-      } else if (parsed.intent === AIIntent.CREATE_TASK) {
-        const isShared = parsed.data.scope === RecordScope.SHARED && !!user.householdId;
-
-        const task = await this.prisma.task.create({
-          data: {
-            title: parsed.data.title,
-            scope: isShared ? RecordScope.SHARED : RecordScope.PRIVATE,
-            userId: user.id,
-            householdId: isShared ? user.householdId : null,
-          },
-        });
-
-        const scopeLabel = isShared ? '🏠 Lembrete Compartilhado' : '🔒 Lembrete Pessoal';
-        await this.sendWhatsAppMessage(
-          message.from,
-          `📌 *Lembrete Anotado!*\n\n"${task.title}"\n${scopeLabel}\n\nVocê pode ver sua lista de rotina no app!`,
+          `✅ *Gasto Registrado!*${sourceNotice}\n\n📝 *Nome:* ${expense.description}\n💰 *Valor:* R$ ${formattedAmount}\n🏷️ *Escopo:* ${scopeLabel}\n\nJá sincronizado no seu app Nexo! 📲`,
         );
       } else if (parsed.intent === AIIntent.CREATE_GOAL && parsed.data.amount) {
-        const isShared = parsed.data.scope === RecordScope.SHARED && !!user.householdId;
-
         const goal = await this.prisma.goal.create({
           data: {
             title: parsed.data.title,
@@ -111,14 +141,53 @@ export class WhatsappService {
           },
         });
 
+        const formattedAmount = Number(goal.targetAmount).toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
+
         await this.sendWhatsAppMessage(
           message.from,
-          `🎯 *Nova Meta Criada!*\n\n"${goal.title}" com alvo de R$ ${Number(goal.targetAmount).toFixed(2)}`,
+          `🎯 *Meta Cadastrada!*${sourceNotice}\n\n🏷️ *Meta:* ${goal.title}\n💰 *Alvo:* R$ ${formattedAmount}\n👥 *Escopo:* ${scopeLabel}\n\nJá atualizado no seu painel de Metas no app Nexo! 📲`,
+        );
+      } else if (parsed.intent === AIIntent.CREATE_TASK) {
+        const dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
+        const hasSpecificTime = !!parsed.data.hasSpecificTime;
+
+        const task = await this.prisma.task.create({
+          data: {
+            title: parsed.data.title,
+            dueDate,
+            hasSpecificTime,
+            reminderSent: false,
+            scope: isShared ? RecordScope.SHARED : RecordScope.PRIVATE,
+            userId: user.id,
+            householdId: isShared ? user.householdId : null,
+          },
+        });
+
+        let timeNotice = '';
+        if (dueDate) {
+          const formattedDue = dueDate.toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+            day: '2-digit',
+            month: '2-digit',
+            hour: hasSpecificTime ? '2-digit' : undefined,
+            minute: hasSpecificTime ? '2-digit' : undefined,
+          });
+          timeNotice = `\n⏰ *Prazo:* ${formattedDue}\n🔔 *Aviso:* Notificaremos você aqui no WhatsApp antes do prazo!`;
+        }
+        const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
+
+        await this.sendWhatsAppMessage(
+          message.from,
+          `📌 *Lembrete Anotado!*${sourceNotice}\n\n"${task.title}"\n🏷️ ${scopeLabel}${timeNotice}\n\nVocê pode ver sua lista de rotina no app! 📲`,
         );
       } else {
         await this.sendWhatsAppMessage(
           message.from,
-          `🤔 Não consegui entender completamente o registro.\n\nExperimente enviar:\n• "Gastei 45 no mercado compartilhado"\n• "Almoço 32 privado"\n• "Lembrar de pagar luz dia 10"`,
+          `🤔 Não consegui identificar os dados com clareza.\n\nExperimente:\n• Enviar foto de um comprovante ou cupom fiscal\n• Gravar um áudio dizendo: "Gastei 50 no mercado hoje"\n• Gravar um áudio: "Guardar 5000 na meta viagem"\n• Digitar: "Almoço 35"`,
         );
       }
     } catch (error) {
@@ -126,7 +195,46 @@ export class WhatsappService {
     }
   }
 
-    private async findUserByPhone(rawPhone: string) {
+  private async downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string } | null> {
+    const accessToken = this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
+    if (!accessToken) {
+      this.logger.error('Cannot download media: WHATSAPP_ACCESS_TOKEN not configured.');
+      return null;
+    }
+
+    try {
+      // 1. Obter metadados da mídia (incluindo URL de download temporária)
+      const metaRes = await axios.get(`https://graph.facebook.com/v21.0/${mediaId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const mediaUrl = metaRes.data?.url;
+      const mimeType = metaRes.data?.mime_type || 'image/jpeg';
+
+      if (!mediaUrl) {
+        this.logger.error(`No download URL found for media ${mediaId}`);
+        return null;
+      }
+
+      // 2. Baixar os bytes do arquivo
+      const fileRes = await axios.get(mediaUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'User-Agent': 'curl/7.64.1',
+        },
+        responseType: 'arraybuffer',
+      });
+
+      return {
+        buffer: Buffer.from(fileRes.data),
+        mimeType,
+      };
+    } catch (err: any) {
+      this.logger.error(`Failed to download media ${mediaId} from Meta: ${err?.response?.data || err.message}`);
+      return null;
+    }
+  }
+
+  private async findUserByPhone(rawPhone: string) {
     const digits = (rawPhone || '').replace(/\D/g, '');
     const withoutCountry = digits.startsWith('55') ? digits.slice(2) : digits;
 
@@ -162,13 +270,21 @@ export class WhatsappService {
     );
   }
 
+  async sendWelcomeMessage(toPhone: string, name?: string) {
+    if (!toPhone) return;
+    const firstName = name ? name.trim().split(' ')[0] : 'aí';
+    const welcomeText = `Olá, ${firstName}! 👋 Seja bem-vindo(a) ao Nexo! ✨\n\nA partir de agora você pode registrar gastos, tarefas e metas diretamente por aqui pelo WhatsApp.\n\nExperimente enviar:\n• "Gastei 45 no mercado"\n• Enviar a foto de um comprovante Pix ou cupom fiscal 📸\n• Mandar um áudio falando um gasto ou meta 🎙️\n• "Lembrar de pagar luz amanhã"`;
+    await this.sendWhatsAppMessage(toPhone, welcomeText);
+  }
+
   async sendWhatsAppMessage(toPhone: string, text: string) {
     const accessToken = this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
     const phoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
+    const cleanPhone = (toPhone || '').replace(/\D/g, '');
 
     if (!accessToken || !phoneNumberId || accessToken === 'your_meta_permanent_access_token_here') {
       this.logger.warn(
-        `[MOCK WHATSAPP OUTBOUND] Para: ${toPhone} | Mensagem: "${text.replace(/\n/g, ' ')}"`,
+        `[MOCK WHATSAPP OUTBOUND] Para: ${cleanPhone} | Mensagem: "${text.replace(/\n/g, ' ')}"`,
       );
       return;
     }
@@ -178,7 +294,7 @@ export class WhatsappService {
         `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
         {
           messaging_product: 'whatsapp',
-          to: toPhone,
+          to: cleanPhone,
           type: 'text',
           text: { body: text },
         },

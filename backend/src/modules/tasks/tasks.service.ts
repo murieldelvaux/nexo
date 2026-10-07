@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { CreateTaskDto, RecordScope } from '../../../../packages/shared/src';
+import { CreateTaskDto, UpdateTaskDto, RecordScope } from '../../../../packages/shared/src';
 
 @Injectable()
 export class TasksService {
@@ -46,6 +46,26 @@ export class TasksService {
     });
 
     return tasks.map(this.mapTask);
+  }
+
+  async update(id: string, userId: string, dto: UpdateTaskDto) {
+    const task = await this.prisma.task.findUnique({ where: { id } });
+    if (!task) throw new NotFoundException('Lembrete não encontrado');
+
+    const updated = await this.prisma.task.update({
+      where: { id },
+      data: {
+        ...(dto.title !== undefined && { title: dto.title }),
+        ...(dto.dueDate !== undefined && {
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          reminderSent: false, // Reset reminder se data foi alterada
+        }),
+        ...(dto.isCompleted !== undefined && { isCompleted: dto.isCompleted }),
+        ...(dto.scope !== undefined && { scope: dto.scope as any }),
+      },
+    });
+
+    return this.mapTask(updated);
   }
 
   async toggleComplete(id: string) {

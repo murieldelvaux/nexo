@@ -4,11 +4,14 @@ import { queryKeys } from '../services/queryKeys';
 import {
   ExpensesListResponseDto,
   CreateExpenseDto,
+  UpdateExpenseDto,
   ExpenseDto,
 } from '../../../packages/shared/src';
 
 export function useExpenses(filters: {
   month?: string;
+  startDate?: string;
+  endDate?: string;
   scope?: string;
   category?: string;
 } = {}) {
@@ -28,6 +31,16 @@ export function useExpenses(filters: {
   const createExpenseMutation = useMutation({
     mutationFn: async (dto: CreateExpenseDto) => {
       const { data } = await apiClient.post<ExpenseDto>('/expenses', dto);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all });
+    },
+  });
+
+  const updateExpenseMutation = useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateExpenseDto }) => {
+      const { data } = await apiClient.patch<ExpenseDto>(`/expenses/${id}`, dto);
       return data;
     },
     onSuccess: () => {
@@ -59,6 +72,8 @@ export function useExpenses(filters: {
     refetch: expensesQuery.refetch,
     createExpense: createExpenseMutation.mutateAsync,
     isCreating: createExpenseMutation.isPending,
+    updateExpense: updateExpenseMutation.mutateAsync,
+    isUpdating: updateExpenseMutation.isPending,
     deleteExpense: deleteExpenseMutation.mutateAsync,
     isDeleting: deleteExpenseMutation.isPending,
   };

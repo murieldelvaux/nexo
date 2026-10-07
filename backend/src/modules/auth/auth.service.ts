@@ -10,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import axios from 'axios';
 import { MailService } from '../mail/mail.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { PrismaService } from '../../database/prisma.service';
 import {
   RegisterDto,
@@ -27,6 +28,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private mailService: MailService,
+    private whatsappService: WhatsappService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -61,6 +63,11 @@ export class AuthService {
       sub: user.id,
       email: user.email,
     });
+
+    // Enviar mensagem de boas-vindas no WhatsApp se informado telefone
+    if (user.phoneNumber) {
+      this.whatsappService.sendWelcomeMessage(user.phoneNumber, user.name).catch(() => {});
+    }
 
     return {
       accessToken,
@@ -99,6 +106,11 @@ export class AuthService {
       sub: user.id,
       email: user.email,
     });
+
+    // Enviar mensagem de boas-vindas no WhatsApp se informado telefone
+    if (user.phoneNumber) {
+      this.whatsappService.sendWelcomeMessage(user.phoneNumber, user.name).catch(() => {});
+    }
 
     return {
       accessToken,
@@ -198,6 +210,11 @@ export class AuthService {
       sub: user.id,
       email: user.email,
     });
+
+    // Enviar mensagem de boas-vindas no WhatsApp se informado telefone
+    if (user.phoneNumber) {
+      this.whatsappService.sendWelcomeMessage(user.phoneNumber, user.name).catch(() => {});
+    }
 
     return {
       accessToken,

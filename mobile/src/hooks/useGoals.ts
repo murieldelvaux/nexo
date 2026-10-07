@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/api';
 import { queryKeys } from '../services/queryKeys';
-import { CreateGoalDto, UpdateGoalProgressDto, GoalDto } from '../../../packages/shared/src';
+import { CreateGoalDto, UpdateGoalProgressDto, UpdateGoalDto, GoalDto } from '../../../packages/shared/src';
 
 export function useGoals() {
   const queryClient = useQueryClient();
@@ -34,6 +34,16 @@ export function useGoals() {
     },
   });
 
+  const updateGoalMutation = useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateGoalDto }) => {
+      const { data } = await apiClient.patch<GoalDto>(`/goals/${id}`, dto);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+    },
+  });
+
   const deleteGoalMutation = useMutation({
     mutationFn: async (id: string) => {
       await apiClient.delete(`/goals/${id}`);
@@ -53,6 +63,8 @@ export function useGoals() {
     isCreating: createGoalMutation.isPending,
     addProgress: addProgressMutation.mutateAsync,
     isAddingProgress: addProgressMutation.isPending,
+    updateGoal: updateGoalMutation.mutateAsync,
+    isUpdating: updateGoalMutation.isPending,
     deleteGoal: deleteGoalMutation.mutateAsync,
   };
 }

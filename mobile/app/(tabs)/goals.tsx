@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
+import { Platform, View,
   Text,
   StyleSheet,
   FlatList,
@@ -8,8 +7,7 @@ import {
   Modal,
   SafeAreaView,
   ScrollView,
-  Alert,
-} from 'react-native';
+  Alert, } from 'react-native';
 import { Colors } from '../../src/theme/colors';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
@@ -18,30 +16,87 @@ import { LoadingState } from '../../src/components/LoadingState';
 import { EmptyState } from '../../src/components/EmptyState';
 import { useGoals } from '../../src/hooks/useGoals';
 import { formatCurrency, formatDate } from '../../src/utils/format';
-import { RecordScope } from '../../../packages/shared/src';
+import { RecordScope, GoalStatus, GoalDto } from '../../../packages/shared/src';
 
 export default function GoalsScreen() {
-  const { goals, isLoading, createGoal, isCreating, addProgress, deleteGoal, refetch, isRefetching } =
-    useGoals();
-
-  const [modalVisible, setModalVisible] = useState(false);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [progressModalVisible, setProgressModalVisible] = useState(false);
+
   const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+  const [editingGoal, setEditingGoal] = useState<GoalDto | null>(null);
 
   // Form State
   const [title, setTitle] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [currentAmount, setCurrentAmount] = useState('');
-  const [scope, setScope] = useState<RecordScope>(RecordScope.SHARED);
+  const [scope, setScope] = useState<RecordScope>(RecordScope.PRIVATE);
+  const [targetDate, setTargetDate] = useState('');
   const [amountToAdd, setAmountToAdd] = useState('');
+
+  const {
+    goals,
+    isLoading,
+    createGoal,
+    isCreating,
+    updateGoal,
+    isUpdating,
+    addProgress,
+    deleteGoal,
+    refetch,
+    isRefetching,
+  } = useGoals();
+
+  const handleOpenCreate = () => {
+    setTitle('');
+    setTargetAmount('');
+    setCurrentAmount('');
+    setScope(RecordScope.PRIVATE);
+    setTargetDate('');
+    setCreateModalVisible(true);
+  };
+
+  const handleOpenEdit = (goal: GoalDto) => {
+    setEditingGoal(goal);
+    setTitle(goal.title);
+    setTargetAmount(Number(goal.targetAmount).toFixed(2).replace('.', ','));
+    setCurrentAmount(Number(goal.currentAmount).toFixed(2).replace('.', ','));
+    setScope(goal.scope);
+    if (goal.targetDate) {
+      const d = new Date(goal.targetDate);
+      setTargetDate(
+        `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+      );
+    } else {
+      setTargetDate('');
+    }
+    setEditModalVisible(true);
+  };
+
+  const parseDateInput = (str: string) => {
+    const parts = str.trim().split('/');
+    if (parts.length === 3) {
+      const day = parts[0].padStart(2, '0');
+      const month = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
+    }
+    return '';
+  };
 
   const handleCreate = async () => {
     const target = parseFloat(targetAmount.replace(',', '.'));
     const current = currentAmount ? parseFloat(currentAmount.replace(',', '.')) : 0;
 
     if (!title.trim() || isNaN(target) || target <= 0) {
-      Alert.alert('Atenção', 'Informe um título e valor de meta válido.');
+      Alert.alert('Atenção', 'Informe um título e um valor alvo válido.');
       return;
+    }
+
+    let isoTargetDate: string | undefined = undefined;
+    if (targetDate) {
+      const parsed = parseDateInput(targetDate);
+      if (parsed) isoTargetDate = new Date(parsed).toISOString();
     }
 
     try {
@@ -50,37 +105,101 @@ export default function GoalsScreen() {
         targetAmount: target,
         currentAmount: current,
         scope,
+        targetDate: isoTargetDate,
       });
-      setTitle('');
-      setTargetAmount('');
-      setCurrentAmount('');
-      setModalVisible(false);
+      setCreateModalVisible(false);
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar a meta.');
     }
   };
 
+  const handleUpdate = async () => {
+    if (!editingGoal) return;
+    const target = parseFloat(targetAmount.replace(',', '.'));
+    const current = currentAmount ? parseFloat(currentAmount.replace(',', '.')) : 0;
+
+    if (!title.trim() || isNaN(target) || target <= 0) {
+      Alert.alert('Atenção', 'Informe um título e um valor alvo válido.');
+      return;
+    }
+
+    let isoTargetDate: string | undefined = undefined;
+    if (targetDate) {
+      const parsed = parseDateInput(targetDate);
+      if (parsed) isoTargetDate = new Date(parsed).toISOString();
+    }
+
+    try {
+      await updateGoal({
+        id: editingGoal.id,
+        dto: {
+          title: title.trim(),
+          targetAmount: target,
+          currentAmount: current,
+          scope,
+          targetDate: isoTargetDate,
+        },
+      });
+      setEditModalVisible(false);
+      setEditingGoal(null);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível atualizar a meta.');
+    }
+  };
+
   const handleAddProgress = async () => {
-    if (!selectedGoalId) return;
-    const add = parseFloat(amountToAdd.replace(',', '.'));
-    if (isNaN(add) || add <= 0) {
-      Alert.alert('Atenção', 'Informe um valor para adicionar à meta.');
+    const val = parseFloat(amountToAdd.replace(',', '.'));
+    if (!selectedGoalId || isNaN(val) || val <= 0) {
+      Alert.alert('Atenção', 'Informe um valor válido a adicionar.');
       return;
     }
 
     try {
-      await addProgress({ id: selectedGoalId, dto: { amountToAdd: add } });
+      await addProgress({
+        id: selectedGoalId,
+        dto: { amountToAdd: val },
+      });
       setAmountToAdd('');
       setProgressModalVisible(false);
     } catch {
-      Alert.alert('Erro', 'Não foi possível atualizar o progresso.');
+      Alert.alert('Erro', 'Não foi possível adicionar o progresso.');
     }
   };
 
-  const handleDelete = (id: string, goalTitle: string) => {
-    Alert.alert('Excluir Meta', `Deseja remover "${goalTitle}"?`, [
+  const handleDelete = async (id: string, goalTitle: string) => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Deseja realmente remover a meta "${goalTitle}"?`);
+      if (confirmed) {
+        try {
+          await deleteGoal(id);
+          if (editModalVisible) {
+            setEditModalVisible(false);
+            setEditingGoal(null);
+          }
+        } catch {
+          alert('Não foi possível excluir a meta.');
+        }
+      }
+      return;
+    }
+
+    Alert.alert('Excluir Meta', `Deseja realmente remover a meta "${goalTitle}"?`, [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Excluir', style: 'destructive', onPress: () => deleteGoal(id) },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteGoal(id);
+            if (editModalVisible) {
+              setEditModalVisible(false);
+              setEditingGoal(null);
+            }
+          } catch {
+            Alert.alert('Erro', 'Não foi possível excluir a meta.');
+          }
+        },
+      },
     ]);
   };
 
@@ -91,18 +210,19 @@ export default function GoalsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Text style={styles.title}>Metas do Compartilhadas & Pessoais</Text>
+          <View>
+            <Text style={styles.title}>Metas Financeiras</Text>
+            <Text style={styles.subtitle}>Economias e objetivos compartilhados</Text>
+          </View>
           <Button
             title="+ Nova Meta"
-            onPress={() => setModalVisible(true)}
+            onPress={handleOpenCreate}
             style={styles.addButton}
           />
         </View>
-        <Text style={styles.subtitle}>
-          Planeje viagens, reservas de emergência e conquistas juntos.
-        </Text>
       </View>
 
+      {/* Lista de Metas */}
       <FlatList
         data={goals}
         keyExtractor={(item) => item.id}
@@ -112,33 +232,46 @@ export default function GoalsScreen() {
         ListEmptyComponent={
           <EmptyState
             title="Nenhuma meta cadastrada"
-            description="Crie metas em comum ou individuais para acompanhar a evolução do dinheiro."
+            description="Crie metas para viagens, reservas de emergência ou reformas da casa."
             actionTitle="+ Criar Primeira Meta"
-            onAction={() => setModalVisible(true)}
+            onAction={handleOpenCreate}
           />
         }
         renderItem={({ item }) => {
           const progressPercent = Math.min(
             100,
-            Math.round((item.currentAmount / item.targetAmount) * 100),
+            Math.round((Number(item.currentAmount) / Number(item.targetAmount)) * 100) || 0
           );
 
           return (
             <View style={styles.goalCard}>
               <View style={styles.goalHeader}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, marginRight: 10 }}>
                   <Text style={styles.goalTitle}>{item.title}</Text>
-                  <ScopeBadge scope={item.scope} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <ScopeBadge scope={item.scope} />
+                    {item.targetDate && (
+                      <Text style={styles.dateBadge}>Alvo: {formatDate(item.targetDate)}</Text>
+                    )}
+                  </View>
                 </View>
-                <TouchableOpacity
-                  onPress={() => handleDelete(item.id, item.title)}
-                  style={styles.deleteButton}
-                >
-                  <Text style={{ fontSize: 16 }}>🗑️</Text>
-                </TouchableOpacity>
+
+                <View style={styles.headerActions}>
+                  <TouchableOpacity
+                    style={styles.iconBtn}
+                    onPress={() => handleOpenEdit(item)}
+                  >
+                    <Text style={{ fontSize: 15 }}>✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.iconBtn}
+                    onPress={() => handleDelete(item.id, item.title)}
+                  >
+                    <Text style={{ fontSize: 15 }}>🗑️</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              {/* Valores */}
               <View style={styles.amountRow}>
                 <Text style={styles.currentVal}>{formatCurrency(item.currentAmount)}</Text>
                 <Text style={styles.targetVal}>de {formatCurrency(item.targetAmount)}</Text>
@@ -150,27 +283,35 @@ export default function GoalsScreen() {
               </View>
               <Text style={styles.progressText}>{progressPercent}% atingido</Text>
 
-              <Button
-                title="+ Guardar Valor"
-                variant="secondary"
-                onPress={() => {
-                  setSelectedGoalId(item.id);
-                  setProgressModalVisible(true);
-                }}
-                style={styles.contributeButton}
-              />
+              <View style={styles.cardBottomRow}>
+                <Button
+                  title="+ Guardar Valor"
+                  variant="secondary"
+                  onPress={() => {
+                    setSelectedGoalId(item.id);
+                    setProgressModalVisible(true);
+                  }}
+                  style={{ flex: 1 }}
+                />
+                <Button
+                  title="Editar"
+                  variant="ghost"
+                  onPress={() => handleOpenEdit(item)}
+                  style={{ paddingHorizontal: 16 }}
+                />
+              </View>
             </View>
           );
         }}
       />
 
       {/* Modal Criar Meta */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
+      <Modal visible={createModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <SafeAreaView style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Nova Meta</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
+              <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
                 <Text style={styles.closeText}>Fechar</Text>
               </TouchableOpacity>
             </View>
@@ -178,14 +319,14 @@ export default function GoalsScreen() {
             <ScrollView style={{ padding: 20 }}>
               <Input
                 label="Título da Meta"
-                placeholder="Ex: Viagem de Férias para Portugal"
+                placeholder="Ex: Viagem para Itália"
                 value={title}
                 onChangeText={setTitle}
               />
 
               <Input
                 label="Valor Alvo (R$)"
-                placeholder="Ex: 15.000,00"
+                placeholder="Ex: 10.000,00"
                 keyboardType="decimal-pad"
                 value={targetAmount}
                 onChangeText={setTargetAmount}
@@ -197,6 +338,13 @@ export default function GoalsScreen() {
                 keyboardType="decimal-pad"
                 value={currentAmount}
                 onChangeText={setCurrentAmount}
+              />
+
+              <Input
+                label="Data Alvo (Opcional - DD/MM/AAAA)"
+                placeholder="Ex: 31/12/2026"
+                value={targetDate}
+                onChangeText={setTargetDate}
               />
 
               <Text style={styles.fieldLabel}>Escopo da Meta</Text>
@@ -244,6 +392,107 @@ export default function GoalsScreen() {
                 isLoading={isCreating}
                 style={{ marginTop: 24, marginBottom: 40 }}
               />
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Modal Editar Meta */}
+      <Modal visible={editModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <SafeAreaView style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Editar Meta</Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
+                <Text style={styles.closeText}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ padding: 20 }}>
+              <Input
+                label="Título da Meta"
+                placeholder="Ex: Viagem para Itália"
+                value={title}
+                onChangeText={setTitle}
+              />
+
+              <Input
+                label="Valor Alvo (R$)"
+                placeholder="Ex: 10.000,00"
+                keyboardType="decimal-pad"
+                value={targetAmount}
+                onChangeText={setTargetAmount}
+              />
+
+              <Input
+                label="Valor Já Guardado (R$)"
+                placeholder="0,00"
+                keyboardType="decimal-pad"
+                value={currentAmount}
+                onChangeText={setCurrentAmount}
+              />
+
+              <Input
+                label="Data Alvo (DD/MM/AAAA)"
+                placeholder="Ex: 31/12/2026"
+                value={targetDate}
+                onChangeText={setTargetDate}
+              />
+
+              <Text style={styles.fieldLabel}>Escopo da Meta</Text>
+              <View style={styles.scopeSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.scopeOption,
+                    scope === RecordScope.SHARED && styles.scopeOptionActive,
+                  ]}
+                  onPress={() => setScope(RecordScope.SHARED)}
+                >
+                  <Text style={styles.scopeEmoji}>🏠</Text>
+                  <Text
+                    style={[
+                      styles.scopeOptionText,
+                      scope === RecordScope.SHARED && styles.scopeOptionTextActive,
+                    ]}
+                  >
+                    Meta Compartilhada
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.scopeOption,
+                    scope === RecordScope.PRIVATE && styles.scopeOptionActive,
+                  ]}
+                  onPress={() => setScope(RecordScope.PRIVATE)}
+                >
+                  <Text style={styles.scopeEmoji}>🔒</Text>
+                  <Text
+                    style={[
+                      styles.scopeOptionText,
+                      scope === RecordScope.PRIVATE && styles.scopeOptionTextActive,
+                    ]}
+                  >
+                    Meta Individual
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ marginTop: 24, gap: 12, marginBottom: 40 }}>
+                <Button
+                  title="Salvar Alterações"
+                  onPress={handleUpdate}
+                  isLoading={isUpdating}
+                />
+                {editingGoal && (
+                  <Button
+                    title="Excluir Meta"
+                    variant="ghost"
+                    onPress={() => handleDelete(editingGoal.id, editingGoal.title)}
+                    style={{ borderColor: Colors.danger, borderWidth: 1 }}
+                  />
+                )}
+              </View>
             </ScrollView>
           </SafeAreaView>
         </View>
@@ -299,7 +548,18 @@ const styles = StyleSheet.create({
   },
   goalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   goalTitle: { color: Colors.text, fontSize: 17, fontWeight: '700', marginBottom: 6 },
-  deleteButton: { padding: 4 },
+  headerActions: { flexDirection: 'row', gap: 6 },
+  iconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.inputBg,
+    borderWidth: 1,
+    borderColor: Colors.inputBorder,
+  },
+  dateBadge: {
+    color: Colors.textMuted,
+    fontSize: 12,
+  },
   amountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 14 },
   currentVal: { color: Colors.success, fontSize: 22, fontWeight: '800' },
   targetVal: { color: Colors.textSecondary, fontSize: 14 },
@@ -316,7 +576,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   progressText: { color: Colors.textMuted, fontSize: 12, marginTop: 6, fontWeight: '600' },
-  contributeButton: { marginTop: 14 },
+  cardBottomRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: Colors.surface,

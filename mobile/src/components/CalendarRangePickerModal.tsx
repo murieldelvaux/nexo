@@ -1,0 +1,550 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Platform,
+} from 'react-native';
+import { Colors } from '../theme/colors';
+import { Button } from './Button';
+
+interface CalendarRangePickerModalProps {
+  visible: boolean;
+  onClose: () => void;
+  initialStartDate?: string; // YYYY-MM-DD or DD/MM/YYYY
+  initialEndDate?: string;   // YYYY-MM-DD or DD/MM/YYYY
+  onApply: (startDate: string, endDate: string) => void;
+  onClear?: () => void;
+}
+
+const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const MONTH_NAMES = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+function normalizeToYmd(dateStr?: string): string | null {
+  if (!dateStr) return null;
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.substring(0, 10);
+  }
+  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (match) {
+    const [, d, m, y] = match;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return null;
+}
+
+function formatYmdToBr(ymd?: string | null): string {
+  if (!ymd) return '';
+  const parts = ymd.split('-');
+  if (parts.length !== 3) return ymd;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+export function CalendarRangePickerModal({
+  visible,
+  onClose,
+  initialStartDate,
+  initialEndDate,
+  onApply,
+  onClear,
+}: CalendarRangePickerModalProps) {
+  const today = useMemo(() => new Date(), []);
+  const todayYmd = useMemo(() => {
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  }, [today]);
+
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1); // 1-12
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      const parsedStart = normalizeToYmd(initialStartDate);
+      const parsedEnd = normalizeToYmd(initialEndDate);
+      setStartDate(parsedStart);
+      setEndDate(parsedEnd);
+
+      if (parsedStart) {
+        const [y, m] = parsedStart.split('-').map(Number);
+        setCurrentYear(y);
+        setCurrentMonth(m);
+      } else {
+        setCurrentYear(today.getFullYear());
+        setCurrentMonth(today.getMonth() + 1);
+      }
+    }
+  }, [visible, initialStartDate, initialEndDate, today]);
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 1) {
+      setCurrentMonth(12);
+      setCurrentYear((y) => y - 1);
+    } else {
+      setCurrentMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 12) {
+      setCurrentMonth(1);
+      setCurrentYear((y) => y + 1);
+    } else {
+      setCurrentMonth((m) => m + 1);
+    }
+  };
+
+  const handleSelectDay = (ymd: string) => {
+    if (!startDate || (startDate && endDate)) {
+      // Começar nova seleção
+      setStartDate(ymd);
+      setEndDate(null);
+    } else if (startDate && !endDate) {
+      if (ymd < startDate) {
+        // Selecionou data anterior: inverte
+        setEndDate(startDate);
+        setStartDate(ymd);
+      } else {
+        setEndDate(ymd);
+      }
+    }
+  };
+
+  // Presets rápidos (estilo MUI DateRangePicker)
+  const applyPreset = (preset: 'TODAY' | 'LAST_7' | 'THIS_MONTH' | 'LAST_MONTH') => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const toYmd = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+
+    if (preset === 'TODAY') {
+      const ymd = toYmd(d);
+      setStartDate(ymd);
+      setEndDate(ymd);
+      setCurrentYear(d.getFullYear());
+      setCurrentMonth(d.getMonth() + 1);
+    } else if (preset === 'LAST_7') {
+      const endYmd = toYmd(d);
+      const past = new Date(d);
+      past.setDate(past.getDate() - 6);
+      const startYmd = toYmd(past);
+      setStartDate(startYmd);
+      setEndDate(endYmd);
+      setCurrentYear(d.getFullYear());
+      setCurrentMonth(d.getMonth() + 1);
+    } else if (preset === 'THIS_MONTH') {
+      const start = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
+      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const end = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(lastDay)}`;
+      setStartDate(start);
+      setEndDate(end);
+      setCurrentYear(d.getFullYear());
+      setCurrentMonth(d.getMonth() + 1);
+    } else if (preset === 'LAST_MONTH') {
+      const prevM = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+      const start = `${prevM.getFullYear()}-${pad(prevM.getMonth() + 1)}-01`;
+      const lastDay = new Date(prevM.getFullYear(), prevM.getMonth() + 1, 0).getDate();
+      const end = `${prevM.getFullYear()}-${pad(prevM.getMonth() + 1)}-${pad(lastDay)}`;
+      setStartDate(start);
+      setEndDate(end);
+      setCurrentYear(prevM.getFullYear());
+      setCurrentMonth(prevM.getMonth() + 1);
+    }
+  };
+
+  const handleConfirm = () => {
+    if (startDate) {
+      const s = formatYmdToBr(startDate);
+      const e = formatYmdToBr(endDate || startDate);
+      onApply(s, e);
+      onClose();
+    }
+  };
+
+  const handleClear = () => {
+    setStartDate(null);
+    setEndDate(null);
+    if (onClear) onClear();
+    onClose();
+  };
+
+  // Construção dos dias do mês corrente
+  const calendarDays = useMemo(() => {
+    const firstDayIndex = new Date(currentYear, currentMonth - 1, 1).getDay(); // 0 = Dom
+    const daysInMonth = new Date(currentYear, currentMonth - 1 + 1, 0).getDate();
+
+    const days: Array<{
+      dayNumber: number;
+      ymd: string;
+      isCurrentMonth: boolean;
+    } | null> = [];
+
+    // Preenchimento de dias vazios antes do dia 1
+    for (let i = 0; i < firstDayIndex; i++) {
+      days.push(null);
+    }
+
+    // Dias do mês
+    for (let d = 1; d <= daysInMonth; d++) {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const ymd = `${currentYear}-${pad(currentMonth)}-${pad(d)}`;
+      days.push({
+        dayNumber: d,
+        ymd,
+        isCurrentMonth: true,
+      });
+    }
+
+    return days;
+  }, [currentYear, currentMonth]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.headerTitle}>Selecionar Período</Text>
+              <Text style={styles.headerSubtitle}>
+                {startDate
+                  ? `${formatYmdToBr(startDate)} ${endDate ? 'até ' + formatYmdToBr(endDate) : '(selecione o fim)'}`
+                  : 'Toque para escolher início e fim'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Text style={styles.closeBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Presets Rápidos */}
+            <View style={styles.presetsRow}>
+              <TouchableOpacity
+                style={styles.presetBadge}
+                onPress={() => applyPreset('TODAY')}
+              >
+                <Text style={styles.presetText}>Hoje</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetBadge}
+                onPress={() => applyPreset('LAST_7')}
+              >
+                <Text style={styles.presetText}>7 Dias</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetBadge}
+                onPress={() => applyPreset('THIS_MONTH')}
+              >
+                <Text style={styles.presetText}>Este Mês</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetBadge}
+                onPress={() => applyPreset('LAST_MONTH')}
+              >
+                <Text style={styles.presetText}>Mês Anterior</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Navegação de Mês (Estilo MUI) */}
+            <View style={styles.monthNavRow}>
+              <TouchableOpacity onPress={handlePrevMonth} style={styles.arrowBtn}>
+                <Text style={styles.arrowText}>◀</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.currentMonthLabel}>
+                {MONTH_NAMES[currentMonth - 1]} {currentYear}
+              </Text>
+
+              <TouchableOpacity onPress={handleNextMonth} style={styles.arrowBtn}>
+                <Text style={styles.arrowText}>▶</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Cabeçalho dos Dias da Semana */}
+            <View style={styles.weekDaysRow}>
+              {WEEK_DAYS.map((wd) => (
+                <View key={wd} style={styles.weekDayCell}>
+                  <Text style={styles.weekDayText}>{wd}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Grid dos Dias */}
+            <View style={styles.daysGrid}>
+              {calendarDays.map((item, idx) => {
+                if (!item) {
+                  return <View key={`empty-${idx}`} style={styles.dayCellEmpty} />;
+                }
+
+                const isStart = item.ymd === startDate;
+                const isEnd = item.ymd === endDate;
+                const isInRange =
+                  startDate &&
+                  endDate &&
+                  item.ymd > startDate &&
+                  item.ymd < endDate;
+                const isToday = item.ymd === todayYmd;
+
+                return (
+                  <View
+                    key={item.ymd}
+                    style={[
+                      styles.dayCellWrapper,
+                      isInRange && styles.dayCellRangeMid,
+                      isStart && endDate && styles.dayCellRangeStart,
+                      isEnd && startDate && styles.dayCellRangeEnd,
+                    ]}
+                  >
+                    <TouchableOpacity
+                      onPress={() => handleSelectDay(item.ymd)}
+                      style={[
+                        styles.dayBtn,
+                        isToday && styles.dayBtnToday,
+                        (isStart || isEnd) && styles.dayBtnActive,
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.dayText,
+                          isToday && styles.dayTextToday,
+                          isInRange && styles.dayTextRange,
+                          (isStart || isEnd) && styles.dayTextActive,
+                        ]}
+                      >
+                        {item.dayNumber}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          {/* Rodapé com Ações */}
+          <View style={styles.footer}>
+            <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
+              <Text style={styles.clearBtnText}>Limpar</Text>
+            </TouchableOpacity>
+
+            <View style={styles.actionsRight}>
+              <Button
+                title="Cancelar"
+                variant="ghost"
+                onPress={onClose}
+                style={{ height: 42, marginRight: 8 }}
+              />
+              <Button
+                title="Aplicar"
+                onPress={handleConfirm}
+                disabled={!startDate}
+                style={{ height: 42, minWidth: 100 }}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.surfaceCardBorder,
+    width: '100%',
+    maxWidth: 380,
+    padding: 20,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+      },
+    }),
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: Colors.primary,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  closeBtn: {
+    padding: 6,
+  },
+  closeBtnText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 16,
+  },
+  presetBadge: {
+    backgroundColor: Colors.surfaceCard,
+    borderColor: Colors.border,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  presetText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  monthNavRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 4,
+  },
+  currentMonthLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  arrowBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceCard,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  arrowText: {
+    color: Colors.primary,
+    fontSize: 12,
+  },
+  weekDaysRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  weekDayCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 4,
+  },
+  weekDayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+  },
+  dayCellEmpty: {
+    width: '14.28%',
+    height: 40,
+  },
+  dayCellWrapper: {
+    width: '14.28%',
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dayCellRangeMid: {
+    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+  },
+  dayCellRangeStart: {
+    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+  },
+  dayCellRangeEnd: {
+    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  dayBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dayBtnToday: {
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+  },
+  dayBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  dayText: {
+    fontSize: 13,
+    color: Colors.text,
+    fontWeight: '500',
+  },
+  dayTextToday: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  dayTextRange: {
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  dayTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: 14,
+    marginTop: 4,
+  },
+  clearBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  clearBtnText: {
+    color: Colors.textSecondary,
+    fontSize: 14,
+  },
+  actionsRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+});
