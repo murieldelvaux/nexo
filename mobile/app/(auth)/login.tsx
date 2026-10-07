@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   TouchableOpacity,
   KeyboardAvoidingView,
@@ -19,6 +20,7 @@ import { GoogleButton } from '../../src/components/GoogleButton';
 import { useGoogleSignIn } from '../../src/hooks/useGoogleSignIn';
 import { GoogleConfigModal } from '../../src/components/GoogleConfigModal';
 
+const NexoLogo = require('../../assets/nexo-logo.png');
 const { width } = Dimensions.get('window');
 
 // ─── Componente de campo inline premium ───────────────────────────────────────
@@ -164,10 +166,8 @@ export default function LoginScreen() {
         >
           {/* ── Hero ── */}
           <View style={styles.hero}>
-            <View style={styles.logoRing}>
-              <View style={styles.logoBadge}>
-                <Text style={styles.logoLetter}>N</Text>
-              </View>
+            <View style={styles.logoWrapper}>
+              <Image source={NexoLogo} style={styles.logoImage} resizeMode="contain" />
             </View>
             <Text style={styles.brand}>Nexo</Text>
             <Text style={styles.tagline}>
@@ -192,6 +192,17 @@ export default function LoginScreen() {
               onPress={google.signIn}
               isLoading={google.isLoading}
             />
+            {google.error ? (
+              <TouchableOpacity
+                onPress={() => google.setShowConfigModal(true)}
+                style={{ marginTop: 10, alignItems: "center" }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: Colors.primary, fontSize: 12, fontWeight: "600", textDecorationLine: "underline" }}>
+                  🔑 Entrar com conta de teste / simulação
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* Divisor */}
             <View style={styles.divider}>
@@ -293,35 +304,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  logoRing: {
-    width: 88,
-    height: 88,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    borderColor: 'rgba(10,132,255,0.3)',
+  logoWrapper: {
+    width: 76,
+    height: 76,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    backgroundColor: 'rgba(10,132,255,0.06)',
-  },
-  logoBadge: {
-    width: 66,
-    height: 66,
-    borderRadius: 18,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.primary,
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.35,
     shadowRadius: 16,
-    elevation: 12,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  logoLetter: {
-    color: '#FFF',
-    fontSize: 32,
-    fontWeight: '900',
-    letterSpacing: -1,
+  logoImage: {
+    width: 62,
+    height: 62,
+    borderRadius: 16,
   },
   brand: {
     color: Colors.text,

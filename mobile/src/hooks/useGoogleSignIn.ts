@@ -41,7 +41,8 @@ export function useGoogleSignIn() {
         setError(Array.isArray(msg) ? msg[0] : msg || 'Falha ao autenticar com o Google.');
       });
     } else if (response.type === 'error') {
-      setError('O Google recusou a autenticação. Tente novamente.');
+      const detail = response.error?.message || response.params?.error_description || '';
+      setError(detail ? `Google: ${detail}` : 'O Google recusou a autenticação. Tente novamente.');
     }
   }, [response]);
 
@@ -51,7 +52,15 @@ export function useGoogleSignIn() {
       setShowConfigModal(true);
       return;
     }
-    await promptAsync();
+    try {
+      const res = await promptAsync();
+      if (res?.type === 'error') {
+        const detail = res.error?.message || (res as any).params?.error_description || '';
+        setError(detail ? `Google: ${detail}` : 'O Google recusou a autenticação.');
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Falha ao iniciar autenticação com o Google.');
+    }
   };
 
   const signInWithDevAccount = async (email: string, name: string) => {

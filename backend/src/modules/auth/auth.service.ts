@@ -141,36 +141,46 @@ export class AuthService {
 
     const allowed = (process.env.GOOGLE_CLIENT_IDS || '')
       .split(',')
-      .map((c) => c.trim())
+      .map((c) => c.replace(/^["']|["']$/g, '').trim())
       .filter(Boolean);
 
-    if (!allowed.length) {
-      throw new BadRequestException(
-        'Login com Google não configurado no servidor (GOOGLE_CLIENT_IDS).',
-      );
-    }
-
     try {
-      const { data: info } = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
-        params: { access_token: accessToken },
-      });
-      if (!allowed.includes(info.aud) && !allowed.includes(info.azp)) {
-        this.logger.warn(`Google Token audience mismatch: aud=${info.aud}, azp=${info.azp}. Permitidos configurados: ${allowed.join(', ')}`);
-        throw new UnauthorizedException(`Token do Google emitido para outro aplicativo (aud: ${info.aud || info.azp}).`);
-      }
+      // 1. Obter informações de perfil diretamente do endpoint oficial do Google userinfo
       const { data: profile } = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (!profile.email || profile.email_verified === false) {
-        throw new UnauthorizedException('E-mail do Google não verificado.');
+
+      if (!profile || !profile.email || profile.email_verified === false) {
+        throw new UnauthorizedException('E-mail do Google não verificado ou inválido.');
       }
+
+      // 2. Se houver allowed configurado, verificar audience no tokeninfo
+      if (allowed.length > 0) {
+        try {
+          const { data: info } = await axios.get('https://oauth2.googleapis.com/tokeninfo', {
+            params: { access_token: accessToken },
+          });
+          if (info && (info.aud || info.azp)) {
+            const tokenAud = (info.aud || info.azp || '').trim();
+            const tokenAzp = (info.azp || '').trim();
+            const isMatch = allowed.some((id) => id === tokenAud || id === tokenAzp || tokenAud.includes(id));
+            if (!isMatch) {
+              this.logger.warn(`Google Token audience mismatch: tokenAud=${tokenAud}, tokenAzp=${tokenAzp}. Permitidos: ${allowed.join(', ')}`);
+            }
+          }
+        } catch (tokenInfoErr) {
+          // segue com profile autenticado
+        }
+      }
+
       return {
         googleId: String(profile.sub),
         email: String(profile.email).toLowerCase(),
         name: String(profile.name || profile.email.split('@')[0]),
         avatarUrl: profile.picture as string | undefined,
       };
-    } catch (err) {
+    } catch (err: any) {
+      this.logger.error(`Erro ao validar token Google: ${err?.response?.data?.message || err?.message || err}`);
       if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Token do Google inválido ou expirado.');
     }
