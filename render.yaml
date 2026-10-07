@@ -1,5 +1,4 @@
 # Blueprint do Render para Deploy Automático do Nexo Backend + Banco PostgreSQL
-# Acesse https://dashboard.render.com -> Blueprints -> New Blueprint Instance e selecione seu repositório.
 
 databases:
   - name: nexo-database
