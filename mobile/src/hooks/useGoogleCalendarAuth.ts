@@ -27,7 +27,6 @@ export function useGoogleCalendarAuth() {
       'openid',
       'profile',
       'email',
-      'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/calendar.events',
     ],
   });

@@ -1,3 +1,5 @@
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import React, { useState } from 'react';
 import {
   View,
@@ -45,6 +47,8 @@ export default function ShoppingListScreen() {
     deleteItem,
     clearCompleted,
     isClearing,
+    importSpreadsheet,
+    isImporting,
   } = useShoppingList(scopeFilter);
 
   // Inserção Rápida
@@ -61,6 +65,137 @@ export default function ShoppingListScreen() {
 
   // Controle de visualização dos itens comprados
   const [showCompleted, setShowCompleted] = useState(true);
+  // Modal de Importação de Planilha / Foto
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [importTab, setImportTab] = useState<"IMAGE" | "FILE" | "TEXT">("IMAGE");
+  const [importText, setImportText] = useState("");
+  const [selectedFileBase64, setSelectedFileBase64] = useState<string | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [importScope, setImportScope] = useState<RecordScope>(RecordScope.SHARED);
+  const [importStatusMsg, setImportStatusMsg] = useState<string | null>(null);
+
+
+    const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        let base64 = asset.base64;
+        if (!base64 && asset.uri) {
+          // On web or file uri
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            const resp = await fetch(asset.uri);
+            const blob = await resp.blob();
+            base64 = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const res = reader.result as string;
+                resolve(res.split(",")[1]);
+              };
+              reader.readAsDataURL(blob);
+            });
+          }
+        }
+        if (base64) {
+          setSelectedFileBase64(base64);
+          setSelectedFileName(asset.fileName || "print_planilha.jpg");
+          setImportStatusMsg("Imagem selecionada com sucesso!");
+        }
+      }
+    } catch (e: any) {
+      Alert.alert("Erro", "Não foi possível carregar a imagem.");
+    }
+  };
+
+  const handlePickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-excel",
+          "text/csv",
+          "*/*",
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        if (Platform.OS === "web" && (file as any).file) {
+          const rawFile = (file as any).file as File;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const res = reader.result as string;
+            setSelectedFileBase64(res.split(",")[1]);
+            setSelectedFileName(file.name);
+            setImportStatusMsg("Arquivo selecionado: " + file.name);
+          };
+          reader.readAsDataURL(rawFile);
+        } else if (file.uri) {
+          const resp = await fetch(file.uri);
+          const blob = await resp.blob();
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const res = reader.result as string;
+              resolve(res.split(",")[1]);
+            };
+            reader.readAsDataURL(blob);
+          });
+          setSelectedFileBase64(base64);
+          setSelectedFileName(file.name);
+          setImportStatusMsg("Arquivo selecionado: " + file.name);
+        }
+      }
+    } catch (e: any) {
+      Alert.alert("Erro", "Não foi possível abrir o arquivo.");
+    }
+  };
+
+  const handleExecuteImport = async () => {
+    if (importTab === "TEXT" && !importText.trim()) {
+      Alert.alert("Atenção", "Cole o texto ou tabela da planilha antes de processar.");
+      return;
+    }
+    if ((importTab === "IMAGE" || importTab === "FILE") && !selectedFileBase64) {
+      Alert.alert("Atenção", "Selecione uma imagem ou arquivo antes de processar.");
+      return;
+    }
+
+    try {
+      setImportStatusMsg("Processando com IA...");
+      const res = await importSpreadsheet({
+        text: importTab === "TEXT" ? importText.trim() : undefined,
+        fileBase64: (importTab === "IMAGE" || importTab === "FILE") && selectedFileBase64 ? selectedFileBase64 : undefined,
+        filename: selectedFileName || undefined,
+        scope: importScope,
+      });
+
+      if (res.success) {
+        const count = res.count || 0;
+        setImportModalVisible(false);
+        setSelectedFileBase64(null);
+        setSelectedFileName(null);
+        setImportText("");
+        setImportStatusMsg(null);
+        if (Platform.OS === "web") {
+          window.alert("🎉 Sucesso! " + count + " itens adicionados à sua lista de compras.");
+        } else {
+          Alert.alert("🎉 Sucesso!", count + " itens adicionados à sua lista de compras.");
+        }
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || "Erro ao processar planilha.";
+      setImportStatusMsg("Erro: " + msg);
+      Alert.alert("Falha ao Importar", msg);
+    }
+  };
 
   const handleQuickAdd = async () => {
     const trimmed = quickName.trim();
@@ -185,7 +320,25 @@ export default function ShoppingListScreen() {
             </Text>
           </View>
 
-          {/* Seletor rápido de escopo para novos itens */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => setImportModalVisible(true)}
+              style={[
+                styles.quickScopePill,
+                {
+                  backgroundColor: isDark ? "#1E293B" : "#F1F5F9",
+                  borderColor: theme.primary,
+                  borderWidth: 1.5,
+                },
+              ]}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.quickScopeText, { color: theme.primary, fontWeight: "700" }]}>
+                📊 Importar Planilha
+              </Text>
+            </TouchableOpacity>
+
+            {/* Seletor rápido de escopo para novos itens */}
           <TouchableOpacity
             onPress={() => setQuickScope(quickScope === RecordScope.SHARED ? RecordScope.PRIVATE : RecordScope.SHARED)}
             style={[
@@ -210,6 +363,7 @@ export default function ShoppingListScreen() {
               {quickScope === RecordScope.SHARED ? '🏠 Compartilhada' : '🔒 Pessoal'}
             </Text>
           </TouchableOpacity>
+          </View>
         </View>
 
         {/* INPUT DE INSERÇÃO RÁPIDA (TOPO) */}

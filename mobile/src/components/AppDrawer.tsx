@@ -29,6 +29,13 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   {
+    id: 'settings',
+    title: 'Perfil e Configurações',
+    subtitle: 'Foto, WhatsApp e lar',
+    route: '/(tabs)/settings',
+    icon: '👤',
+  },
+  {
     id: 'dashboard',
     title: 'Início & Resumo',
     subtitle: 'Visão consolidada',
@@ -69,13 +76,6 @@ const NAV_ITEMS: NavItem[] = [
     subtitle: 'Eventos e Google Agenda',
     route: '/(tabs)/calendar',
     icon: '📅',
-  },
-  {
-    id: 'settings',
-    title: 'Meu Perfil',
-    subtitle: 'Foto, WhatsApp e lar',
-    route: '/(tabs)/settings',
-    icon: '👤',
   },
 ];
 
@@ -155,9 +155,9 @@ export function AppDrawer() {
           <View style={[styles.header, { borderBottomColor: theme.border }]}>
             <View style={styles.brandRow}>
               <Image source={NexoLogo} style={styles.logo} resizeMode="contain" />
-              <View>
+              <View style={{ flex: 1, paddingRight: 6 }}>
                 <Text style={[styles.brandTitle, { color: theme.textPrimary }]}>Nexo</Text>
-                <Text style={[styles.brandSubtitle, { color: theme.textSecondary }]}>
+                <Text style={[styles.brandSubtitle, { color: theme.textSecondary }]} numberOfLines={1}>
                   Gestão Inteligente individual e compartilhada
                 </Text>
               </View>
@@ -344,6 +344,7 @@ const styles = StyleSheet.create({
     maxWidth: '85%',
     height: '100%',
     borderRightWidth: 1,
+    overflow: 'hidden',
     zIndex: 10,
     ...Platform.select({
       web: {
@@ -364,6 +365,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
   },
   logo: {
     width: 38,
@@ -385,6 +387,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0,
   },
   closeBtnText: {
     fontSize: 14,

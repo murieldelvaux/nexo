@@ -38,6 +38,14 @@ export class ShoppingListController {
     return this.service.createBatch(userId, items || []);
   }
 
+  @Post('import')
+  async importSpreadsheet(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: { text?: string; fileBase64?: string; filename?: string; scope?: RecordScope },
+  ) {
+    return this.service.importSpreadsheet(userId, dto);
+  }
+
   @Get()
   async findAll(
     @CurrentUser('userId') userId: string,

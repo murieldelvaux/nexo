@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import { Injectable, Logger } from '@nestjs/common';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { ConfigService } from '@nestjs/config';
@@ -172,6 +173,26 @@ Mensagem: "${messageText}"`;
   ): Promise<ParsedWhatsAppResultDto> {
     const referenceIso = now.toISOString();
     const cleanMimeType = (mimeType || 'image/jpeg').split(';')[0].trim();
+    // Se for arquivo de planilha Excel (.xlsx, .xls) ou CSV, converte para texto estruturado
+    if (
+      cleanMimeType.includes("spreadsheet") ||
+      cleanMimeType.includes("excel") ||
+      cleanMimeType.includes("csv") ||
+      (caption && /\.(xlsx|xls|csv)$/i.test(caption))
+    ) {
+      try {
+        const workbook = XLSX.read(mediaBuffer, { type: "buffer" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        const tableText = rows.map((r) => Array.isArray(r) ? r.filter(Boolean).join(" | ") : "").filter(Boolean).join("\n");
+        this.logger.log(`Planilha convertida em texto (linhas: ${rows.length}): \n${tableText.slice(0, 300)}...`);
+        return this.parseMessage("Adicionar na lista de compras os seguintes itens da planilha:\n" + tableText, now);
+      } catch (err) {
+        this.logger.warn(`Erro ao extrair planilha via xlsx: ${err}`);
+      }
+    }
+
 
     if (this.genAI) {
       try {

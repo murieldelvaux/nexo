@@ -101,6 +101,24 @@ export class WhatsappService {
 
         mediaSourceLabel = '🎙️ Áudio de Voz';
         parsed = await this.aiParser.parseMedia(media.buffer, media.mimeType || mimeType);
+      } else if (messageType === "document") {
+        const docObj = message.document;
+        const mediaId = docObj?.id;
+        const filename = docObj?.filename || "documento";
+        const mimeType = docObj?.mime_type || "application/octet-stream";
+        this.logger.log(`WhatsApp document received from ${fromNumber} (ID: ${mediaId}, filename: "${filename}")`);
+
+        const media = await this.downloadMedia(mediaId);
+        if (!media) {
+          await this.sendWhatsAppMessage(
+            message.from,
+            "⚠️ Não foi possível baixar o arquivo enviado. Por favor, tente enviar novamente.",
+          );
+          return;
+        }
+
+        mediaSourceLabel = `📄 Arquivo/Planilha (${filename})`;
+        parsed = await this.aiParser.parseMedia(media.buffer, mimeType, filename);
       } else {
         return;
       }
@@ -381,7 +399,7 @@ export class WhatsappService {
     });
 
     return (
-      users.find((u) => {
+      users.find((u: any) => {
         if (!u.phoneNumber) return false;
         const uDigits = u.phoneNumber.replace(/\D/g, '');
         const uWithoutCountry = uDigits.startsWith('55') ? uDigits.slice(2) : uDigits;

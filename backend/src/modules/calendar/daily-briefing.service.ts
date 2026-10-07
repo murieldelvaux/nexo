@@ -157,7 +157,7 @@ export class DailyBriefingService implements OnModuleInit, OnModuleDestroy {
     let eventsBlock = '• _Nenhum compromisso agendado para hoje. Aproveite o dia livre!_';
     if (events.length > 0) {
       eventsBlock = events
-        .map((ev) => {
+        .map((ev: any) => {
           const time = ev.isAllDay
             ? 'Dia inteiro'
             : ev.startDate.toLocaleTimeString('pt-BR', {
@@ -175,7 +175,7 @@ export class DailyBriefingService implements OnModuleInit, OnModuleDestroy {
     let tasksBlock = '• _Nenhuma tarefa ou conta com vencimento para hoje!_';
     if (tasks.length > 0) {
       tasksBlock = tasks
-        .map((tk) => {
+        .map((tk: any) => {
           const dueTime = tk.hasSpecificTime && tk.dueDate
             ? ` [às ${tk.dueDate.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}]`
             : '';
@@ -247,7 +247,7 @@ Tenha um dia muito produtivo e abençoado! ✨📱`;
     let eventsBlock = '• _Nenhum compromisso marcado para os próximos dias._';
     if (events.length > 0) {
       eventsBlock = events
-        .map((ev) => {
+        .map((ev: any) => {
           const dateStr = ev.startDate.toLocaleDateString('pt-BR', {
             timeZone: 'America/Sao_Paulo',
             weekday: 'short',
@@ -269,7 +269,7 @@ Tenha um dia muito produtivo e abençoado! ✨📱`;
     let tasksBlock = '• _Nenhuma tarefa pendente com prazo nesta semana._';
     if (tasks.length > 0) {
       tasksBlock = tasks
-        .map((tk) => {
+        .map((tk: any) => {
           const dateStr = tk.dueDate
             ? tk.dueDate.toLocaleDateString('pt-BR', {
                 timeZone: 'America/Sao_Paulo',

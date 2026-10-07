@@ -72,6 +72,14 @@ export function useShoppingList(scope?: RecordScope) {
     },
   });
 
+  const importSpreadsheetMutation = useMutation({
+    mutationFn: (dto: { text?: string; fileBase64?: string; filename?: string; scope?: RecordScope }) =>
+      shoppingListService.importSpreadsheet(dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.all });
+    },
+  });
+
   const allItems = listQuery.data || [];
   const pendingItems = allItems.filter((i) => !i.isCompleted);
   const completedItems = allItems.filter((i) => i.isCompleted);
@@ -92,5 +100,7 @@ export function useShoppingList(scope?: RecordScope) {
     deleteItem: deleteMutation.mutateAsync,
     clearCompleted: clearCompletedMutation.mutateAsync,
     isClearing: clearCompletedMutation.isPending,
+    importSpreadsheet: importSpreadsheetMutation.mutateAsync,
+    isImporting: importSpreadsheetMutation.isPending,
   };
 }

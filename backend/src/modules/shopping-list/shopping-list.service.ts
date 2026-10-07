@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { AiParserService } from '../ai-parser/ai-parser.service';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import {
   CreateShoppingItemDto,
@@ -9,7 +10,7 @@ import {
 
 @Injectable()
 export class ShoppingListService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private aiParser: AiParserService) {}
 
   async create(userId: string, dto: CreateShoppingItemDto): Promise<ShoppingItemDto> {
     const user = await this.prisma.user.findUnique({
@@ -155,6 +156,70 @@ export class ShoppingListService {
     });
 
     return { count: result.count };
+  }
+
+
+  async importSpreadsheet(
+    userId: string,
+    dto: { text?: string; base64?: string; filename?: string; mimeType?: string; scope?: RecordScope },
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { householdId: true },
+    });
+
+    let parsedResult;
+    if (dto.base64) {
+      const buffer = Buffer.from(dto.base64, "base64");
+      parsedResult = await this.aiParser.parseMedia(
+        buffer,
+        dto.mimeType || "image/jpeg",
+        dto.filename,
+      );
+    } else if (dto.text) {
+      parsedResult = await this.aiParser.parseMessage(
+        "Adicionar na lista de compras os itens da seguinte planilha:\n" + dto.text,
+      );
+    } else {
+      throw new BadRequestException("Envie o texto ou arquivo da planilha.");
+    }
+
+    const rawItems = parsedResult.data.items || [];
+    let itemsToCreate = rawItems;
+
+    if (itemsToCreate.length === 0 && parsedResult.data.title) {
+      const parts = parsedResult.data.title
+        .replace(/^(?:comprar|adicionar\s+(?:na\s+)?lista\s*(?:de\s*compras)?)\s*/i, "")
+        .split(/(?:,|[\n•-])+|\be\b/i)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      itemsToCreate = parts.map((name) => ({ name, quantity: "1", category: "Geral" }));
+    }
+
+    const isShared = (dto.scope === RecordScope.SHARED || user?.householdId) && !!user?.householdId;
+    const itemScope = isShared ? RecordScope.SHARED : RecordScope.PRIVATE;
+
+    const createdList: ShoppingItemDto[] = [];
+    for (const it of itemsToCreate) {
+      if (!it.name || !it.name.trim()) continue;
+      const created = await this.prisma.shoppingItem.create({
+        data: {
+          name: it.name.trim(),
+          quantity: it.quantity ? String(it.quantity).trim() : "1",
+          category: it.category ? String(it.category).trim() : "Geral",
+          scope: itemScope,
+          userId,
+          householdId: isShared ? user?.householdId : null,
+        },
+      });
+      createdList.push(this.mapItem(created));
+    }
+
+    return {
+      success: true,
+      count: createdList.length,
+      items: createdList,
+    };
   }
 
   private mapItem(item: any): ShoppingItemDto {

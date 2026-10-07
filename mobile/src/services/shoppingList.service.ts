@@ -43,4 +43,17 @@ export const shoppingListService = {
     const { data } = await apiClient.delete<{ count: number }>('/shopping-list/completed');
     return data;
   },
+
+  async importSpreadsheet(dto: {
+    text?: string;
+    fileBase64?: string;
+    filename?: string;
+    scope?: RecordScope;
+  }): Promise<{ success: boolean; count: number; items: ShoppingItemDto[] }> {
+    const { data } = await apiClient.post<{ success: boolean; count: number; items: ShoppingItemDto[] }>(
+      '/shopping-list/import',
+      dto,
+    );
+    return data;
+  },
 };
