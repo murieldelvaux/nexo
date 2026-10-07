@@ -8,6 +8,7 @@ import {
   GoogleAuthDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  UpdateProfileDto,
 } from '../../../packages/shared/src';
 
 export function useAuth() {
@@ -70,7 +71,7 @@ export function useAuth() {
   });
 
   const updateProfileMutation = useMutation({
-    mutationFn: (dto: { name?: string; avatarUrl?: string; phoneNumber?: string }) =>
+    mutationFn: (dto: UpdateProfileDto) =>
       authService.updateProfile(dto),
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(queryKeys.auth.me, (old: any) => ({ ...old, ...updatedUser }));

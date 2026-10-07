@@ -50,6 +50,28 @@ export default function ProfileScreen() {
   const [joinError, setJoinError] = useState('');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [phoneSaved, setPhoneSaved] = useState(false);
+  // Estados de Notificação e Resumos no WhatsApp
+  const [dailyTime, setDailyTime] = useState(user?.dailySummaryTime || "06:00");
+  const [enableDaily, setEnableDaily] = useState(user?.enableDailySummary !== false);
+  const [periodicType, setPeriodicType] = useState<string>(user?.periodicSummaryType || "none");
+  const [isSavingNotifs, setIsSavingNotifs] = useState(false);
+
+  const handleSaveNotificationSettings = async () => {
+    setIsSavingNotifs(true);
+    try {
+      await updateProfile({
+        dailySummaryTime: dailyTime,
+        enableDailySummary: enableDaily,
+        periodicSummaryType: periodicType,
+      });
+      showMessage("Preferências Salvas!", "Seus horários de resumos e lembretes foram configurados.");
+    } catch {
+      showMessage("Erro", "Não foi possível salvar as configurações de notificação.");
+    } finally {
+      setIsSavingNotifs(false);
+    }
+  };
+
 
   const handleOpenPhotoModal = () => {
     setNewAvatarUrl(user?.avatarUrl || '');
@@ -248,6 +270,114 @@ export default function ProfileScreen() {
             </Text>
           </View>
         </View>
+
+        {/* SEÇÃO 1.5: RESUMOS & LEMBRETES NO WHATSAPP */}
+        <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}>
+          <View style={styles.sectionHeaderRow}>
+            <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? "rgba(245, 158, 11, 0.15)" : "#FEF3C7" }]}>
+              <Text style={{ fontSize: 18 }}>⏰</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+                Resumos Diários & Periódicos
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                Receba sua programação matinal direto no seu WhatsApp
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ marginTop: 14 }}>
+            <View style={styles.settingRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={[styles.settingRowTitle, { color: theme.textPrimary }]}>
+                  Resumo Matinal Diário
+                </Text>
+                <Text style={[styles.settingRowDesc, { color: theme.textSecondary }]}>
+                  Receba compromissos, tarefas e compras do dia no seu WhatsApp às {dailyTime}.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.toggleSwitch,
+                  { backgroundColor: enableDaily ? theme.primary : theme.surfaceSubtle },
+                ]}
+                onPress={() => setEnableDaily(!enableDaily)}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.toggleKnob,
+                    enableDaily && { alignSelf: "flex-end", backgroundColor: "#FFFFFF" },
+                  ]}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {enableDaily && (
+              <View style={{ marginTop: 10 }}>
+                <Input
+                  label="Horário do envio matinal (Horário de Brasília)"
+                  placeholder="06:00"
+                  value={dailyTime}
+                  onChangeText={setDailyTime}
+                />
+              </View>
+            )}
+
+            <View style={{ marginTop: 14 }}>
+              <Text style={[styles.settingRowTitle, { color: theme.textPrimary, marginBottom: 4 }]}>
+                Visão Geral Periódica
+              </Text>
+              <Text style={[styles.settingRowDesc, { color: theme.textSecondary, marginBottom: 10 }]}>
+                Receba um panorama completo dos compromissos e tarefas futuras da semana.
+              </Text>
+
+              <View style={styles.periodicSelector}>
+                {[
+                  { id: "none", label: "Desativado" },
+                  { id: "weekly", label: "Semanal (Segundas)" },
+                  { id: "biweekly", label: "Quinzenal" },
+                ].map((opt) => (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[
+                      styles.periodicOption,
+                      periodicType === opt.id && {
+                        backgroundColor: theme.primaryLight,
+                        borderColor: theme.primary,
+                      },
+                      { borderColor: theme.border },
+                    ]}
+                    onPress={() => setPeriodicType(opt.id)}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.periodicOptionText,
+                        {
+                          color: periodicType === opt.id ? theme.primary : theme.textSecondary,
+                          fontWeight: periodicType === opt.id ? "700" : "500",
+                        },
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <Button
+              title="Salvar Preferências de Notificação"
+              variant="primary"
+              onPress={handleSaveNotificationSettings}
+              isLoading={isSavingNotifs}
+              style={{ marginTop: 14 }}
+            />
+          </View>
+        </View>
+
 
         {/* SEÇÃO 2: ESPAÇO DO LAR / HOUSEHOLD */}
         <View style={[styles.sectionCard, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}>
@@ -862,5 +992,47 @@ const styles = StyleSheet.create({
   dialogTitle: {
     fontSize: 17,
     fontWeight: '700',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  settingRowTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  settingRowDesc: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  toggleSwitch: {
+    width: 48,
+    height: 26,
+    borderRadius: 13,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleKnob: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#94A3B8',
+  },
+  periodicSelector: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  periodicOption: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  periodicOptionText: {
+    fontSize: 11,
   },
 });

@@ -18,6 +18,7 @@ import {
   GoogleAuthDto,
   ForgotPasswordDto,
   ResetPasswordDto,
+  UpdateProfileDto,
 } from '../../../../packages/shared/src';
 
 @Injectable()
@@ -185,21 +186,21 @@ export class AuthService {
     });
 
     if (user) {
-      if (!user.googleId || (!user.avatarUrl && dto.avatarUrl)) {
-        user = await this.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            googleId: dto.googleId,
-            avatarUrl: dto.avatarUrl || user.avatarUrl,
-          },
-        });
-      }
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          googleId: dto.googleId,
+          googleAccessToken: rawDto.accessToken,
+          avatarUrl: dto.avatarUrl || user.avatarUrl,
+        },
+      });
     } else {
       user = await this.prisma.user.create({
         data: {
           email,
           name: dto.name,
           googleId: dto.googleId,
+          googleAccessToken: rawDto.accessToken,
           avatarUrl: dto.avatarUrl,
         },
       });
@@ -305,6 +306,11 @@ export class AuthService {
         phoneNumber: true,
         householdId: true,
         avatarUrl: true,
+        dailySummaryTime: true,
+        enableDailySummary: true,
+        periodicSummaryType: true,
+        periodicSummaryDay: true,
+        googleAccessToken: true,
         household: {
           select: {
             id: true,
@@ -327,7 +333,7 @@ export class AuthService {
 
   async updateProfile(
     userId: string,
-    data: { name?: string; avatarUrl?: string; phoneNumber?: string },
+    data: UpdateProfileDto,
   ) {
     const updated = await this.prisma.user.update({
       where: { id: userId },
@@ -335,6 +341,11 @@ export class AuthService {
         ...(data.name && { name: data.name }),
         ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl }),
         ...(data.phoneNumber !== undefined && { phoneNumber: data.phoneNumber }),
+        ...(data.dailySummaryTime !== undefined && { dailySummaryTime: data.dailySummaryTime }),
+        ...(data.enableDailySummary !== undefined && { enableDailySummary: data.enableDailySummary }),
+        ...(data.periodicSummaryType !== undefined && { periodicSummaryType: data.periodicSummaryType }),
+        ...(data.periodicSummaryDay !== undefined && { periodicSummaryDay: data.periodicSummaryDay }),
+        ...(data.googleAccessToken !== undefined && { googleAccessToken: data.googleAccessToken }),
       },
       select: {
         id: true,
@@ -343,6 +354,11 @@ export class AuthService {
         phoneNumber: true,
         householdId: true,
         avatarUrl: true,
+        dailySummaryTime: true,
+        enableDailySummary: true,
+        periodicSummaryType: true,
+        periodicSummaryDay: true,
+        googleAccessToken: true,
       },
     });
     return updated;

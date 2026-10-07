@@ -30,6 +30,8 @@ export class AiParserService {
             AIIntent.CREATE_EXPENSE,
             AIIntent.CREATE_TASK,
             AIIntent.CREATE_GOAL,
+            AIIntent.CREATE_EVENT,
+            AIIntent.CREATE_SHOPPING_ITEM,
             AIIntent.UNKNOWN,
           ],
         },
@@ -58,6 +60,10 @@ export class AiParserService {
             },
             dueDate: { type: SchemaType.STRING },
             hasSpecificTime: { type: SchemaType.BOOLEAN },
+            startDate: { type: SchemaType.STRING },
+            endDate: { type: SchemaType.STRING },
+            isAllDay: { type: SchemaType.BOOLEAN },
+            location: { type: SchemaType.STRING },
             notes: { type: SchemaType.STRING },
           },
           required: ['title', 'scope'],
@@ -108,6 +114,17 @@ REGRA DE OURO SOBRE ESCOPO (PRIVADO vs COMPARTILHADO):
   Ex: "dia 30/10 às 15h" -> ano corrente, 30 de outubro às 15:00 (UTC-3).
 - 'hasSpecificTime': true se o usuário informou um horário ou minutos/horas específicas (ex: "daqui 10 minutos", "às 15h"). false se informou apenas o dia (ex: "dia 30/10").
 - 'scope': PRIVATE por padrão.
+
+
+4. COMPROMISSOS, REUNIÕES E EVENTOS DE AGENDA (CREATE_EVENT):
+- Se indicar um compromisso de calendário, evento, reunião, consulta médica, voo, aniversário ou festa (ex: "Agendar reunião amanhã às 15h", "Dentista quinta 14:00", "Adicionar evento Aniversário do João dia 20/11", "Compromisso médico sexta"):
+  Classifique como CREATE_EVENT.
+- "title": título do compromisso limpo (ex: "Reunião de Alinhamento", "Dentista", "Aniversário do João").
+- "startDate": data e hora ISO calculada com precisão (fuso UTC-3 de Brasília).
+- "endDate": data e hora de término ISO (se não informado, assuma 1 hora após startDate).
+- "isAllDay": true se for dia inteiro sem hora específica, false se tiver hora.
+- "location": local se mencionado (ex: "Consultório Dr. Paulo", "Google Meet").
+- "scope": PRIVATE por padrão. Somente SHARED se disser expressamente compartilhado, nossa agenda, do casal ou juntos.
 
 3. GASTOS E DESPESAS (CREATE_EXPENSE):
 - Gastos imediatos já realizados (ex: "Gastei 45 no mercado compartilhado", "Almoço 32", "Farmácia 25").
@@ -178,7 +195,7 @@ DIRETRIZES DE RECONHECIMENTO:
      - 'amount': o valor monetário alvo da meta.
      - 'title': o nome limpo do objetivo (ex: "Reforma da casa", "Viagem para Paris").
 
-3. LEMBRETES E COMPROMISSOS (CREATE_TASK):
+3. LEMBRETES E TAREFAS (CREATE_TASK):
    - Se for áudio pedindo para lembrar de algo (ex: "lembrar de pagar condomínio dia 10", "consulta médica amanhã às 14h"):
      - 'intent': "CREATE_TASK"
      - 'title': descrição do compromisso/tarefa.
@@ -289,6 +306,59 @@ DIRETRIZES DE RECONHECIMENTO:
         data: {
           title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
           amount: amount || 1000,
+          scope,
+        },
+      };
+    }
+
+
+    // 1.5. Detecção de Compromisso / Evento de Calendário
+    if (
+      lower.includes("agendar") ||
+      lower.includes("agenda") ||
+      lower.includes("evento") ||
+      lower.includes("reunião") ||
+      lower.includes("reuniao") ||
+      lower.includes("consulta") ||
+      lower.includes("aniversário") ||
+      lower.includes("aniversario")
+    ) {
+      let eventDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // amanhã padrão
+      let isAllDay = true;
+
+      // amanhã
+      if (lower.includes("hoje")) {
+        eventDate = new Date(now);
+      } else if (lower.includes("amanha") || lower.includes("amanhã")) {
+        eventDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      }
+
+      // Horário (ex: "às 15h" ou "15:30")
+      const timeMatch = lower.match(/(?:às|as)s+(d{1,2})(?:h|:(d{2}))?/i);
+      if (timeMatch) {
+        const h = parseInt(timeMatch[1], 10);
+        const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+        eventDate.setHours(h, m, 0, 0);
+        isAllDay = false;
+      }
+
+      const endDate = new Date(eventDate.getTime() + (isAllDay ? 24 * 3600 * 1000 : 60 * 60 * 1000));
+
+      let cleanTitle = text
+        .replace(/^(?:agendar|adicionar|marcar|criar)?s*(?:evento|reunião|reuniao|compromisso|consulta)?s*(?:de)?/i, "")
+        .replace(/(?:às|as)s+d{1,2}(?:h|:d{2})?/gi, "")
+        .replace(/(?:amanhã|amanha|hoje)/gi, "")
+        .trim();
+      if (!cleanTitle) cleanTitle = text;
+
+      return {
+        intent: AIIntent.CREATE_EVENT,
+        confidence: 0.88,
+        data: {
+          title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
+          startDate: eventDate.toISOString(),
+          endDate: endDate.toISOString(),
+          isAllDay,
           scope,
         },
       };

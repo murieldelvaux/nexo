@@ -31,7 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     id: 'dashboard',
     title: 'Início & Resumo',
-    subtitle: 'Visão consolidada do lar',
+    subtitle: 'Visão consolidada',
     route: '/(tabs)',
     icon: '📊',
   },
@@ -62,6 +62,13 @@ const NAV_ITEMS: NavItem[] = [
     subtitle: 'Mercado, feira e casa',
     route: '/(tabs)/shopping-list',
     icon: '🛒',
+  },
+  {
+    id: 'calendar',
+    title: 'Agenda & Calendário',
+    subtitle: 'Eventos e Google Agenda',
+    route: '/(tabs)/calendar',
+    icon: '📅',
   },
   {
     id: 'settings',
@@ -196,9 +203,12 @@ export function AppDrawer() {
             </Text>
 
             {NAV_ITEMS.map((item) => {
-              const isActive =
-                pathname === item.route ||
-                (item.route === '/(tabs)' && pathname === '/');
+              const cleanRoute = item.route.replace('/(tabs)', '');
+              const cleanPath = pathname.replace('/(tabs)', '');
+
+              const isHome = item.id === 'dashboard' && (cleanPath === '' || cleanPath === '/' || cleanPath === '/index');
+              const isMatch = cleanRoute !== '' && (cleanPath === cleanRoute || cleanPath.startsWith(cleanRoute) || pathname.includes(item.id));
+              const isActive = isHome || isMatch;
 
               return (
                 <TouchableOpacity

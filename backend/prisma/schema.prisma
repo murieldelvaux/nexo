@@ -50,6 +50,15 @@ model User {
   goals        Goal[]
   tasks        Task[]
   shoppingItems ShoppingItem[]
+  dailySummaryTime      String?   @default("06:00")
+  enableDailySummary    Boolean   @default(true)
+  periodicSummaryType   String?   @default("WEEKLY")
+  periodicSummaryDay    Int?      @default(1)
+  lastDailySummaryDate  String?
+  lastPeriodicDate      String?
+  googleAccessToken     String?
+  googleRefreshToken    String?
+  calendarEvents        CalendarEvent[]
 
   @@index([phoneNumber])
 }
@@ -66,6 +75,15 @@ model Household {
   goals       Goal[]
   tasks       Task[]
   shoppingItems ShoppingItem[]
+  dailySummaryTime      String?   @default("06:00")
+  enableDailySummary    Boolean   @default(true)
+  periodicSummaryType   String?   @default("WEEKLY")
+  periodicSummaryDay    Int?      @default(1)
+  lastDailySummaryDate  String?
+  lastPeriodicDate      String?
+  googleAccessToken     String?
+  googleRefreshToken    String?
+  calendarEvents        CalendarEvent[]
 }
 
 model Expense {
@@ -158,4 +176,29 @@ model ShoppingItem {
 
   @@index([householdId, isCompleted])
   @@index([userId, isCompleted])
+}
+
+model CalendarEvent {
+  id            String      @id @default(uuid())
+  title         String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime?
+  isAllDay      Boolean     @default(false)
+  location      String?
+  googleEventId String?
+  scope         RecordScope @default(SHARED)
+
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  householdId   String?
+  household     Household?  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([userId, startDate])
+  @@index([householdId, startDate])
+  @@index([googleEventId])
 }

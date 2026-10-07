@@ -11,6 +11,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { AiParserModule } from './modules/ai-parser/ai-parser.module';
 import { ShoppingListModule } from './modules/shopping-list/shopping-list.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
@@ -30,6 +31,7 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
     WhatsappModule,
     AiParserModule,
     ShoppingListModule,
+    CalendarModule,
   ],
   providers: [
     {

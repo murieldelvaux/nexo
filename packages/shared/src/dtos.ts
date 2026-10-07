@@ -41,6 +41,11 @@ export const UpdateProfileDtoSchema = z.object({
   name: z.string().min(2).optional(),
   avatarUrl: z.string().optional(),
   phoneNumber: z.string().optional(),
+  dailySummaryTime: z.string().optional(),
+  enableDailySummary: z.boolean().optional(),
+  periodicSummaryType: z.string().optional(),
+  periodicSummaryDay: z.number().optional(),
+  googleAccessToken: z.string().optional(),
 });
 export type UpdateProfileDto = z.infer<typeof UpdateProfileDtoSchema>;
 
@@ -222,6 +227,40 @@ export interface ShoppingItemDto {
   updatedAt: string;
 }
 
+
+// -----------------------------------------------------------------------------
+// Calendar / Event DTOs
+// -----------------------------------------------------------------------------
+export const CreateCalendarEventDtoSchema = z.object({
+  title: z.string().min(1, 'Título obrigatório'),
+  description: z.string().optional(),
+  startDate: z.string().min(1, 'Data de início obrigatória'),
+  endDate: z.string().optional(),
+  isAllDay: z.boolean().default(false),
+  location: z.string().optional(),
+  scope: z.nativeEnum(RecordScope).default(RecordScope.SHARED),
+});
+export type CreateCalendarEventDto = z.infer<typeof CreateCalendarEventDtoSchema>;
+
+export const UpdateCalendarEventDtoSchema = CreateCalendarEventDtoSchema.partial();
+export type UpdateCalendarEventDto = z.infer<typeof UpdateCalendarEventDtoSchema>;
+
+export interface CalendarEventDto {
+  id: string;
+  title: string;
+  description: string | null;
+  startDate: string;
+  endDate: string | null;
+  isAllDay: boolean;
+  location: string | null;
+  googleEventId: string | null;
+  scope: RecordScope;
+  userId: string;
+  householdId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // -----------------------------------------------------------------------------
 // AI Parser DTOs
 // -----------------------------------------------------------------------------
@@ -237,5 +276,9 @@ export interface ParsedWhatsAppResultDto {
     hasSpecificTime?: boolean;
     notes?: string;
     items?: Array<{ name: string; quantity?: string; category?: string }>;
+    startDate?: string;
+    endDate?: string;
+    isAllDay?: boolean;
+    location?: string;
   };
 }

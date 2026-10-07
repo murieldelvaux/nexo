@@ -21,6 +21,7 @@ export default function TabLayout() {
       <Tabs.Screen name="goals" />
       <Tabs.Screen name="tasks" />
       <Tabs.Screen name="shopping-list" />
+      <Tabs.Screen name="calendar" />
       <Tabs.Screen name="settings" />
     </Tabs>
   );

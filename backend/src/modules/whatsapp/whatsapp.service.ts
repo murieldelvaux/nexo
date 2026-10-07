@@ -212,6 +212,94 @@ export class WhatsappService {
           message.from,
           `📌 *Lembrete Anotado!*${sourceNotice}\n\n"${task.title}"\n🏷️ ${scopeLabel}${timeNotice}\n\nVocê pode ver sua lista de rotina no app! 📲`,
         );
+      } else if (parsed.intent === AIIntent.CREATE_EVENT) {
+        const startDate = parsed.data.startDate ? new Date(parsed.data.startDate) : new Date();
+        const endDate = parsed.data.endDate
+          ? new Date(parsed.data.endDate)
+          : new Date(startDate.getTime() + 60 * 60 * 1000);
+        const isAllDay = !!parsed.data.isAllDay;
+
+        let googleEventId: string | null = null;
+        let syncedWithGoogle = false;
+
+        if (user.googleAccessToken) {
+          try {
+            const body: any = {
+              summary: parsed.data.title,
+              description: parsed.data.notes || "",
+              location: parsed.data.location || "",
+            };
+            if (isAllDay) {
+              const dateStr = startDate.toISOString().slice(0, 10);
+              body.start = { date: dateStr };
+              body.end = { date: (endDate || startDate).toISOString().slice(0, 10) };
+            } else {
+              body.start = { dateTime: startDate.toISOString() };
+              body.end = { dateTime: endDate.toISOString() };
+            }
+
+            const gRes = await axios.post(
+              "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+              body,
+              {
+                headers: {
+                  Authorization: `Bearer ${user.googleAccessToken}`,
+                  "Content-Type": "application/json",
+                },
+              },
+            );
+            if (gRes.data?.id) {
+              googleEventId = gRes.data.id;
+              syncedWithGoogle = true;
+            }
+          } catch (e: any) {
+            this.logger.warn(`WhatsApp event: falha ao sincronizar com Google Agenda: ${e?.message}`);
+          }
+        }
+
+        const calendarEvent = await this.prisma.calendarEvent.create({
+          data: {
+            title: parsed.data.title,
+            description: parsed.data.notes || null,
+            startDate,
+            endDate,
+            isAllDay,
+            location: parsed.data.location || null,
+            scope: isShared ? RecordScope.SHARED : RecordScope.PRIVATE,
+            userId: user.id,
+            householdId: isShared ? user.householdId : null,
+            googleEventId,
+          },
+        });
+
+        const formattedDate = startDate.toLocaleDateString("pt-BR", {
+          timeZone: "America/Sao_Paulo",
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        });
+        const timeNotice = isAllDay
+          ? "Dia inteiro"
+          : startDate.toLocaleTimeString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+        const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : "";
+        const syncNotice = syncedWithGoogle
+          ? "\n🔄 *Sincronizado:* Adicionado automaticamente ao seu Google Agenda! 🗓️"
+          : "";
+
+        const locationNotice = calendarEvent.location
+          ? `\n📍 *Local:* ${calendarEvent.location}`
+          : "";
+
+        await this.sendWhatsAppMessage(
+          message.from,
+          `📅 *Compromisso Agendado!*${sourceNotice}\n\n👉 *${calendarEvent.title}*\n🗓️ *Data:* ${formattedDate}\n⏰ *Horário:* ${timeNotice}${locationNotice}\n🏷️ *Escopo:* ${scopeLabel}${syncNotice}\n\nVocê pode visualizá-lo e editá-lo no app Nexo! 📲`,
+        );
       } else {
         await this.sendWhatsAppMessage(
           message.from,
