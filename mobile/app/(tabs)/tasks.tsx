@@ -437,7 +437,7 @@ export default function TasksScreen() {
               Rotina & Lembretes
             </Text>
             <Text style={[styles.screenSubtitle, { color: theme.textSecondary }]}>
-              Organize tarefas da casa e seus compromissos pessoais.
+              Organize tarefas e seus compromissos pessoais ou compartilhados.
             </Text>
           </View>
         </View>
@@ -1005,7 +1005,7 @@ export default function TasksScreen() {
                         { color: scope === RecordScope.SHARED ? theme.primary : theme.textPrimary },
                       ]}
                     >
-                      Lembrete da Casa
+                      Lembrete compartilhado
                     </Text>
                     <Text style={[styles.scopeCardDesc, { color: theme.textSecondary }]}>
                       Compartilhado

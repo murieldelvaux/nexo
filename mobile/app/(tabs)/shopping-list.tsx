@@ -172,14 +172,30 @@ export default function ShoppingListScreen() {
           </View>
 
           {/* Seletor rápido de escopo para novos itens */}
-          <View style={[styles.quickScopePill, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}>
-            <TouchableOpacity
-              onPress={() => setQuickScope(quickScope === RecordScope.SHARED ? RecordScope.PRIVATE : RecordScope.SHARED)}
-              style={styles.quickScopeTouch}
+          <TouchableOpacity
+            onPress={() => setQuickScope(quickScope === RecordScope.SHARED ? RecordScope.PRIVATE : RecordScope.SHARED)}
+            style={[
+              styles.quickScopePill,
+              {
+                backgroundColor: quickScope === RecordScope.SHARED ? theme.tagSharedBg : theme.tagPrivateBg,
+                borderColor: theme.border,
+              },
+            ]}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.quickScopeText,
+                {
+                  color: quickScope === RecordScope.SHARED
+                    ? (isDark ? '#7DD3FC' : '#1D4ED8')
+                    : theme.textPrimary,
+                },
+              ]}
             >
-              <Text style={{ fontSize: 13 }}>{quickScope === RecordScope.SHARED ? '🏠 Compartilhada' : '🔒 Pessoal'}</Text>
-            </TouchableOpacity>
-          </View>
+              {quickScope === RecordScope.SHARED ? '🏠 Compartilhada' : '🔒 Pessoal'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* INPUT DE INSERÇÃO RÁPIDA (TOPO) */}
@@ -246,7 +262,7 @@ export default function ShoppingListScreen() {
                     },
                   ]}
                 >
-                  {sc === 'ALL' ? 'Todos' : sc === 'SHARED' ? '🏠 Da Casa' : '🔒 Meus'}
+                  {sc === 'ALL' ? 'Todos' : sc === 'SHARED' ? '🏠 Compartilhado' : '🔒 Meus'}
                 </Text>
               </TouchableOpacity>
             );
@@ -586,6 +602,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     fontWeight: '500',
+  },
+  quickScopeText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   quickScopePill: {
     paddingHorizontal: 10,

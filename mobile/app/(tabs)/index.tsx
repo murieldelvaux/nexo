@@ -87,7 +87,7 @@ export default function DashboardScreen() {
             <View style={styles.splitMetricItem}>
               <View style={styles.splitIconLabel}>
                 <Text style={{ fontSize: 13 }}>🏠</Text>
-                <Text style={[styles.splitLabel, { color: theme.textSecondary }]}>Gastos da Casa</Text>
+                <Text style={[styles.splitLabel, { color: theme.textSecondary }]}>Gastos Compartilhados</Text>
               </View>
               <Text style={[styles.splitValue, { color: theme.primary }]}>
                 {formatCurrency(summary?.totalShared || 0)}
