@@ -16,7 +16,8 @@
     "db:studio": "npm run --workspace=backend prisma:studio",
     "db:seed": "npm run --workspace=backend prisma:seed",
     "login": "npm --workspace=mobile exec -- expo login",
-    "db:clean": "npm run --workspace=backend db:clean",
+    "build:backend": "npm run build:shared && npm run --workspace=backend prisma:generate && npm run --workspace=backend build",
+    "start:backend": "npm run --workspace=backend prisma:deploy && npm run --workspace=backend start:prod",
     "dev:web": "npm run --workspace=mobile start -- --web"
   },
   "keywords": [
