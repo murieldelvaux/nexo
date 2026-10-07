@@ -7,6 +7,7 @@ import {
 
 export interface GoogleSyncResult {
   success: boolean;
+  needsConnect?: boolean;
   message: string;
   importedFromGoogle?: number;
   exportedToGoogle?: number;

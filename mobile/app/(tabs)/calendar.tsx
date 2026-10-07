@@ -14,6 +14,7 @@ import {
 import { AppHeader } from '../../src/components/AppHeader';
 import { useTheme } from '../../src/theme/ThemeContext';
 import { useCalendar } from '../../src/hooks/useCalendar';
+import { useGoogleCalendarAuth } from '../../src/hooks/useGoogleCalendarAuth';
 import { RecordScope, CalendarEventDto } from '../../../packages/shared/src';
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -24,6 +25,13 @@ const MONTH_NAMES = [
 
 export default function CalendarScreen() {
   const { theme, isDark } = useTheme();
+  const {
+    connectCalendar,
+    connectDevSimulated,
+    isConnecting: isConnectingGoogle,
+    statusMessage: googleAuthStatus,
+    hasGoogleConnected,
+  } = useGoogleCalendarAuth();
   const {
     events,
     isLoading,
@@ -194,19 +202,35 @@ export default function CalendarScreen() {
   // Ação de Sincronizar com Google Agenda
   const handleSyncGoogle = async () => {
     try {
-      setSyncStatusMsg('Sincronizando com Google Agenda...');
+      setSyncStatusMsg("Sincronizando com Google Agenda...");
       const res = await syncGoogle();
       if (res.success) {
         setSyncStatusMsg(
-          `Sincronizado! +${res.importedFromGoogle || 0} recebido(s), +${res.exportedToGoogle || 0} enviado(s).`,
+          `Sincronizado! +${res.importedFromGoogle || 0} recebido(s), +${res.exportedToGoogle || 0} enviado(s).`
         );
+      } else if (res.needsConnect) {
+        setSyncStatusMsg(res.message);
+        if (Platform.OS === "web") {
+          if (window.confirm("Você precisa autorizar o acesso ao Google Agenda. Deseja conectar sua conta agora?")) {
+            connectCalendar();
+          }
+        } else {
+          Alert.alert(
+            "Conectar Google Agenda",
+            "Sua conta Google precisa autorizar o acesso à agenda. Deseja conectar agora?",
+            [
+              { text: "Cancelar", style: "cancel" },
+              { text: "Conectar", onPress: connectCalendar },
+            ]
+          );
+        }
       } else {
-        setSyncStatusMsg(res.message || 'Verifique as permissões de acesso ao Google Agenda.');
+        setSyncStatusMsg(res.message || "Verifique as permissões de acesso ao Google Agenda.");
       }
-      setTimeout(() => setSyncStatusMsg(null), 4000);
+      setTimeout(() => setSyncStatusMsg(null), 5000);
     } catch (e: any) {
-      setSyncStatusMsg('Erro ao conectar com Google Agenda.');
-      setTimeout(() => setSyncStatusMsg(null), 4000);
+      setSyncStatusMsg("Erro ao conectar com Google Agenda.");
+      setTimeout(() => setSyncStatusMsg(null), 5000);
     }
   };
 
@@ -299,7 +323,7 @@ export default function CalendarScreen() {
             styles.syncBanner,
             {
               backgroundColor: theme.surface,
-              borderColor: theme.border,
+              borderColor: hasGoogleConnected ? "#10B981" : theme.border,
             },
             theme.cardShadow,
           ]}
@@ -307,34 +331,93 @@ export default function CalendarScreen() {
           <View style={styles.syncBannerLeft}>
             <Text style={styles.googleIcon}>🗓️</Text>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.syncTitle, { color: theme.textPrimary }]}>
-                Sincronização Bidirecional
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[styles.syncTitle, { color: theme.textPrimary }]}>
+                  Google Agenda
+                </Text>
+                <View
+                  style={[
+                    styles.connBadge,
+                    {
+                      backgroundColor: hasGoogleConnected
+                        ? isDark ? "#064E3B" : "#DCFCE7"
+                        : isDark ? "#451A03" : "#FEF3C7",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.connBadgeText,
+                      {
+                        color: hasGoogleConnected
+                          ? isDark ? "#6EE7B7" : "#15803D"
+                          : isDark ? "#FCD34D" : "#B45309",
+                      },
+                    ]}
+                  >
+                    {hasGoogleConnected ? "● Conectado" : "○ Não vinculado"}
+                  </Text>
+                </View>
+              </View>
+
               <Text style={[styles.syncSubtitle, { color: theme.textSecondary }]}>
-                Nexo & Google Agenda mantêm seus eventos sincronizados em tempo real.
+                {hasGoogleConnected
+                  ? "Sincronização bidirecional ativa em tempo real."
+                  : "Autorize o acesso para sincronizar compromissos entre o Nexo e sua agenda."}
               </Text>
-              {syncStatusMsg ? (
+
+              {syncStatusMsg || googleAuthStatus ? (
                 <Text style={[styles.syncFeedback, { color: theme.primary }]}>
-                  {syncStatusMsg}
+                  {syncStatusMsg || googleAuthStatus}
                 </Text>
               ) : null}
             </View>
           </View>
 
-          <TouchableOpacity
-            style={[styles.syncBtn, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}
-            onPress={handleSyncGoogle}
-            disabled={isSyncingGoogle}
-            activeOpacity={0.7}
-          >
-            {isSyncingGoogle ? (
-              <ActivityIndicator size="small" color={theme.primary} />
+          <View style={{ flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+            {hasGoogleConnected ? (
+              <TouchableOpacity
+                style={[styles.syncBtn, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}
+                onPress={handleSyncGoogle}
+                disabled={isSyncingGoogle}
+                activeOpacity={0.7}
+              >
+                {isSyncingGoogle ? (
+                  <ActivityIndicator size="small" color={theme.primary} />
+                ) : (
+                  <Text style={[styles.syncBtnText, { color: theme.primary }]}>
+                    🔄 Sincronizar
+                  </Text>
+                )}
+              </TouchableOpacity>
             ) : (
-              <Text style={[styles.syncBtnText, { color: theme.primary }]}>
-                🔄 Sincronizar
-              </Text>
+              <TouchableOpacity
+                style={[styles.connectBtn, { backgroundColor: "#4285F4" }]}
+                onPress={connectCalendar}
+                disabled={isConnectingGoogle}
+                activeOpacity={0.8}
+              >
+                {isConnectingGoogle ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.connectBtnText}>
+                    🔗 Conectar Google
+                  </Text>
+                )}
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+
+            {!hasGoogleConnected && (
+              <TouchableOpacity
+                onPress={connectDevSimulated}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 10, color: theme.textMuted }}>
+                  (ou teste simulação)
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* CONTROLES DO MÊS */}
@@ -1167,5 +1250,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 15,
+  },
+  connBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  connBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  connectBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  connectBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

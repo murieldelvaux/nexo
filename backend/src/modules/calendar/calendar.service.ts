@@ -188,8 +188,18 @@ export class CalendarService {
     if (!user || !user.googleAccessToken) {
       return {
         success: false,
-        message: 'Conta Google não vinculada ou sem permissão de agenda.',
+        needsConnect: true,
+        message: 'Conta Google não vinculada ou sem permissão de agenda. Clique em "Conectar Google Agenda".',
         eventsSynced: 0,
+      };
+    }
+
+    if (user.googleAccessToken.startsWith("dev_token_")) {
+      return {
+        success: true,
+        message: 'Google Agenda conectado e sincronizado em modo de testes!',
+        importedFromGoogle: 0,
+        exportedToGoogle: 0,
       };
     }
 
@@ -306,6 +316,19 @@ export class CalendarService {
       };
     } catch (err: any) {
       this.logger.error(`Erro ao sincronizar com Google Calendar: ${err?.message || err}`);
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        await this.prisma.user.update({
+          where: { id: userId },
+          data: { googleAccessToken: null },
+        });
+        return {
+          success: false,
+          needsConnect: true,
+          message: 'Permissão da agenda expirada ou revogada. Clique em "Conectar Google Agenda" para autorizar.',
+          error: err?.message,
+        };
+      }
       return {
         success: false,
         message: 'Não foi possível sincronizar com o Google Agenda. Verifique as permissões de acesso.',
@@ -343,6 +366,10 @@ export class CalendarService {
         eventData.endDate ||
         new Date(eventData.startDate.getTime() + 60 * 60 * 1000);
       body.end = { dateTime: endDate.toISOString() };
+    }
+
+    if (token.startsWith("dev_token_")) {
+      return "dev_event_" + Date.now();
     }
 
     const res = await axios.post(
