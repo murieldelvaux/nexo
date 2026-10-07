@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Platform, View,
+import {
+  Platform,
+  View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
   Modal,
   SafeAreaView,
   ScrollView,
-  Alert, } from 'react-native';
-import { Colors } from '../../src/theme/colors';
+  Alert,
+} from 'react-native';
 import { Button } from '../../src/components/Button';
 import { Input } from '../../src/components/Input';
 import { ScopeBadge } from '../../src/components/ScopeBadge';
@@ -71,9 +72,9 @@ export default function ExpensesScreen() {
     ...(filterMode === 'MONTH'
       ? { month: currentMonthStr }
       : {
-          startDate: appliedPeriod.start,
-          endDate: appliedPeriod.end,
-        }),
+        startDate: appliedPeriod.start,
+        endDate: appliedPeriod.end,
+      }),
     scope: activeScope,
   });
 
@@ -262,13 +263,23 @@ export default function ExpensesScreen() {
   const isCurrentMonthActive =
     selectedYear === today.getFullYear() && selectedMonth === today.getMonth() + 1;
 
+  const totalGeral = (summary?.totalShared || 0) + (summary?.totalPrivate || 0);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <AppHeader title="Nexo" subtitle="Gastos & Extrato" />
-      {/* Header */}
-      <View style={styles.header}>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* TÍTULO & BOTÃO NOVO GASTO */}
         <View style={styles.headerTop}>
-          <Text style={styles.title}>Gastos & Extrato</Text>
+          <View>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>Gastos & Extrato</Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              {filterMode === 'MONTH'
+                ? `${MONTH_NAMES[selectedMonth - 1]} de ${selectedYear}`
+                : 'Período customizado'}
+            </Text>
+          </View>
           <Button
             title="+ Novo Gasto"
             onPress={handleOpenCreate}
@@ -276,177 +287,301 @@ export default function ExpensesScreen() {
           />
         </View>
 
-        {/* Totais */}
-        <View style={styles.summaryBar}>
-          <View>
-            <Text style={styles.summaryLabel}>Total Compartilhado</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(summary.totalShared)}</Text>
-          </View>
-          <View style={styles.divider} />
-          <View>
-            <Text style={styles.summaryLabel}>Total Privado</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(summary.totalPrivate)}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Alternador de Modo de Filtro (Mês vs Período) */}
-      <View style={styles.timeFilterBar}>
-        <View style={styles.modeToggle}>
-          <TouchableOpacity
-            style={[styles.modeButton, filterMode === 'MONTH' && styles.modeButtonActive]}
-            onPress={() => setFilterMode('MONTH')}
-          >
-            <Text style={[styles.modeText, filterMode === 'MONTH' && styles.modeTextActive]}>
-              📅 Por Mês
+        {/* HERO SUMMARY CARD */}
+        <View
+          style={[
+            styles.summaryCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+            },
+            theme.cardShadow,
+          ]}
+        >
+          <View style={styles.summaryTopRow}>
+            <Text style={[styles.summaryTopLabel, { color: theme.textSecondary }]}>
+              Total no Período
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeButton, filterMode === 'PERIOD' && styles.modeButtonActive]}
-            onPress={() => setFilterMode('PERIOD')}
-          >
-            <Text style={[styles.modeText, filterMode === 'PERIOD' && styles.modeTextActive]}>
-              📆 Período (Dia/Mês/Ano)
+            <Text style={[styles.summaryTopValue, { color: theme.textPrimary }]}>
+              {formatCurrency(totalGeral)}
             </Text>
-          </TouchableOpacity>
-        </View>
+          </View>
 
-        {filterMode === 'MONTH' ? (
-          <View style={styles.monthSelector}>
-            <TouchableOpacity onPress={handlePrevMonth} style={styles.monthNavBtn}>
-              <Text style={styles.monthNavText}>◀</Text>
-            </TouchableOpacity>
-
-            <View style={styles.monthLabelContainer}>
-              <Text style={styles.monthLabel}>
-                {MONTH_NAMES[selectedMonth - 1]} de {selectedYear}
+          <View style={[styles.summarySplitRow, { borderTopColor: theme.border }]}>
+            <View style={styles.summarySplitItem}>
+              <View style={styles.splitBadgeRow}>
+                <Text style={{ fontSize: 13 }}>🏠</Text>
+                <Text style={[styles.summarySplitLabel, { color: theme.textSecondary }]}>
+                  Compartilhado
+                </Text>
+              </View>
+              <Text style={[styles.summarySplitValue, { color: theme.primary }]}>
+                {formatCurrency(summary.totalShared)}
               </Text>
-              {!isCurrentMonthActive && (
-                <TouchableOpacity onPress={handleCurrentMonth} style={styles.currentMonthBadge}>
-                  <Text style={styles.currentMonthBadgeText}>Mês Atual</Text>
-                </TouchableOpacity>
-              )}
+              <Text style={[styles.summarySplitSub, { color: theme.textMuted }]}>
+                Sua parte: {formatCurrency(summary.userShareOfShared)}
+              </Text>
             </View>
 
-            <TouchableOpacity onPress={handleNextMonth} style={styles.monthNavBtn}>
-              <Text style={styles.monthNavText}>▶</Text>
-            </TouchableOpacity>
+            <View style={[styles.verticalDivider, { backgroundColor: theme.border }]} />
+
+            <View style={styles.summarySplitItem}>
+              <View style={styles.splitBadgeRow}>
+                <Text style={{ fontSize: 13 }}>🔒</Text>
+                <Text style={[styles.summarySplitLabel, { color: theme.textSecondary }]}>
+                  Privado
+                </Text>
+              </View>
+              <Text style={[styles.summarySplitValue, { color: theme.textPrimary }]}>
+                {formatCurrency(summary.totalPrivate)}
+              </Text>
+              <Text style={[styles.summarySplitSub, { color: theme.textMuted }]}>
+                100% individual
+              </Text>
+            </View>
           </View>
-        ) : (
-          <View style={styles.periodForm}>
+        </View>
+
+        {/* SELETOR DE MODO DE FILTRO (MÊS vs PERÍODO) */}
+        <View style={styles.timeFilterSection}>
+          <View style={[styles.modeToggle, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}>
             <TouchableOpacity
-              style={styles.calendarTriggerCard}
-              onPress={() => setCalendarPickerVisible(true)}
+              style={[
+                styles.modeButton,
+                filterMode === 'MONTH' && { backgroundColor: theme.primary },
+              ]}
+              onPress={() => setFilterMode('MONTH')}
               activeOpacity={0.8}
             >
-              <View style={styles.calendarTriggerLeft}>
-                <Text style={styles.calendarIcon}>📅</Text>
-                <View>
-                  <Text style={styles.calendarTriggerLabel}>Período Personalizado</Text>
-                  <Text style={styles.calendarTriggerValue}>
-                    {periodStartDate && periodEndDate
-                      ? `${periodStartDate} até ${periodEndDate}`
-                      : periodStartDate
-                      ? `A partir de ${periodStartDate}`
-                      : 'Toque para selecionar no calendário'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.calendarOpenBadge}>
-                <Text style={styles.calendarOpenBadgeText}>Abrir ▾</Text>
-              </View>
+              <Text
+                style={[
+                  styles.modeText,
+                  { color: filterMode === 'MONTH' ? '#FFFFFF' : theme.textSecondary },
+                ]}
+              >
+                📅 Por Mês
+              </Text>
             </TouchableOpacity>
 
-            <View style={styles.periodActions}>
-              <Button
-                title="Abrir Calendário"
-                onPress={() => setCalendarPickerVisible(true)}
-                style={{ flex: 1, height: 40 }}
-              />
-              {(appliedPeriod.start || appliedPeriod.end || periodStartDate || periodEndDate) && (
-                <Button
-                  title="Limpar"
-                  variant="ghost"
-                  onPress={handleClearPeriod}
-                  style={{ height: 40 }}
-                />
-              )}
-            </View>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                filterMode === 'PERIOD' && { backgroundColor: theme.primary },
+              ]}
+              onPress={() => setFilterMode('PERIOD')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.modeText,
+                  { color: filterMode === 'PERIOD' ? '#FFFFFF' : theme.textSecondary },
+                ]}
+              >
+                📆 Período (Datas)
+              </Text>
+            </TouchableOpacity>
           </View>
-        )}
-      </View>
 
-      {/* Seletor de Escopo */}
-      <View style={styles.filterContainer}>
-        {(['ALL', 'SHARED', 'PRIVATE'] as const).map((s) => (
-          <TouchableOpacity
-            key={s}
-            style={[styles.chip, activeScope === s && styles.chipActive]}
-            onPress={() => setActiveScope(s)}
-          >
-            <Text style={[styles.chipText, activeScope === s && styles.chipTextActive]}>
-              {s === 'ALL' ? 'Todos' : s === 'SHARED' ? '🏠 Compartilhados' : '🔒 Privados'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+          {filterMode === 'MONTH' ? (
+            <View
+              style={[
+                styles.monthSelector,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+                theme.cardShadow,
+              ]}
+            >
+              <TouchableOpacity onPress={handlePrevMonth} style={styles.monthNavBtn} activeOpacity={0.7}>
+                <Text style={[styles.monthNavText, { color: theme.primary }]}>◀</Text>
+              </TouchableOpacity>
 
-      {/* Lista de Gastos */}
-      <FlatList
-        data={expenses}
-        keyExtractor={(item) => item.id}
-        refreshing={isRefetching}
-        onRefresh={refetch}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <EmptyState
-            title="Nenhum gasto encontrado"
-            description={
-              filterMode === 'MONTH'
-                ? `Não há lançamentos em ${MONTH_NAMES[selectedMonth - 1]} de ${selectedYear}.`
-                : 'Não há lançamentos no período informado.'
-            }
-            actionTitle="+ Registrar Gasto"
-            onAction={handleOpenCreate}
-          />
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.8}
-            onPress={() => handleOpenEdit(item)}
-          >
-            <View style={styles.cardLeft}>
-              <Text style={styles.cardDesc}>{item.description}</Text>
-              <Text style={styles.cardCategory}>{getCategoryLabel(item.category)}</Text>
-              <View style={styles.cardFooter}>
-                <Text style={styles.cardDate}>
-                  {formatDate(item.date)} • Por {item.author?.name}
+              <View style={styles.monthLabelContainer}>
+                <Text style={[styles.monthLabel, { color: theme.textPrimary }]}>
+                  {MONTH_NAMES[selectedMonth - 1]} de {selectedYear}
                 </Text>
-                <ScopeBadge scope={item.scope} />
+                {!isCurrentMonthActive && (
+                  <TouchableOpacity
+                    onPress={handleCurrentMonth}
+                    style={[styles.currentMonthBadge, { backgroundColor: theme.primaryLight }]}
+                  >
+                    <Text style={[styles.currentMonthBadgeText, { color: theme.primary }]}>
+                      Voltar ao Mês Atual
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            </View>
 
-            <View style={styles.cardRight}>
-              <Text style={styles.cardAmount}>{formatCurrency(item.amount)}</Text>
-              <View style={styles.cardActions}>
-                <TouchableOpacity
-                  style={styles.actionIconBtn}
-                  onPress={() => handleOpenEdit(item)}
-                >
-                  <Text style={styles.actionIcon}>✏️</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionIconBtn}
-                  onPress={() => handleDelete(item.id, item.description)}
-                >
-                  <Text style={styles.actionIcon}>🗑️</Text>
-                </TouchableOpacity>
+              <TouchableOpacity onPress={handleNextMonth} style={styles.monthNavBtn} activeOpacity={0.7}>
+                <Text style={[styles.monthNavText, { color: theme.primary }]}>▶</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.periodFormCard,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+                theme.cardShadow,
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.calendarTriggerCard,
+                  { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
+                ]}
+                onPress={() => setCalendarPickerVisible(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.calendarTriggerLeft}>
+                  <Text style={{ fontSize: 22 }}>📅</Text>
+                  <View>
+                    <Text style={[styles.calendarTriggerLabel, { color: theme.textMuted }]}>
+                      Período Selecionado
+                    </Text>
+                    <Text style={[styles.calendarTriggerValue, { color: theme.textPrimary }]}>
+                      {periodStartDate && periodEndDate
+                        ? `${periodStartDate} até ${periodEndDate}`
+                        : periodStartDate
+                          ? `A partir de ${periodStartDate}`
+                          : 'Toque para selecionar no calendário'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={[styles.calendarOpenBadge, { backgroundColor: theme.primaryLight }]}>
+                  <Text style={[styles.calendarOpenBadgeText, { color: theme.primary }]}>
+                    Escolher ▾
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.periodActions}>
+                <Button
+                  title="Abrir Calendário"
+                  onPress={() => setCalendarPickerVisible(true)}
+                  style={{ flex: 1, height: 40 }}
+                />
+                {(appliedPeriod.start || appliedPeriod.end || periodStartDate || periodEndDate) && (
+                  <Button
+                    title="Limpar"
+                    variant="ghost"
+                    onPress={handleClearPeriod}
+                    style={{ height: 40 }}
+                  />
+                )}
               </View>
             </View>
-          </TouchableOpacity>
-        )}
-      />
+          )}
+        </View>
+
+        {/* SELETOR DE ESCOPO (CHIPS) */}
+        <View style={styles.scopeChipsContainer}>
+          {(['ALL', 'SHARED', 'PRIVATE'] as const).map((s) => {
+            const isSelected = activeScope === s;
+            return (
+              <TouchableOpacity
+                key={s}
+                style={[
+                  styles.scopeChip,
+                  {
+                    backgroundColor: isSelected ? theme.primary : theme.surface,
+                    borderColor: isSelected ? theme.primary : theme.border,
+                  },
+                ]}
+                onPress={() => setActiveScope(s)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.scopeChipText,
+                    {
+                      color: isSelected ? '#FFFFFF' : theme.textSecondary,
+                      fontWeight: isSelected ? '700' : '500',
+                    },
+                  ]}
+                >
+                  {s === 'ALL' ? 'Todos' : s === 'SHARED' ? '🏠 Compartilhados' : '🔒 Privados'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* LISTAGEM DE GASTOS */}
+        <View style={styles.listSection}>
+          <Text style={[styles.listSectionTitle, { color: theme.textPrimary }]}>
+            Lançamentos ({expenses.length})
+          </Text>
+
+          {expenses.length === 0 ? (
+            <EmptyState
+              title="Nenhum gasto encontrado"
+              description={
+                filterMode === 'MONTH'
+                  ? `Não há lançamentos em ${MONTH_NAMES[selectedMonth - 1]} de ${selectedYear}.`
+                  : 'Não há lançamentos no período informado.'
+              }
+              actionTitle="+ Registrar Gasto"
+              onAction={handleOpenCreate}
+            />
+          ) : (
+            expenses.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[
+                  styles.expenseCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                  theme.cardShadow,
+                ]}
+                activeOpacity={0.8}
+                onPress={() => handleOpenEdit(item)}
+              >
+                <View style={styles.cardLeft}>
+                  <Text style={[styles.cardDesc, { color: theme.textPrimary }]}>
+                    {item.description}
+                  </Text>
+                  <Text style={[styles.cardCategory, { color: theme.textSecondary }]}>
+                    {getCategoryLabel(item.category)}
+                  </Text>
+                  <View style={styles.cardFooter}>
+                    <ScopeBadge scope={item.scope} />
+                    <Text style={[styles.cardDate, { color: theme.textMuted }]}>
+                      {formatDate(item.date)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.cardRight}>
+                  <Text style={[styles.cardAmount, { color: theme.textPrimary }]}>
+                    {formatCurrency(item.amount)}
+                  </Text>
+
+                  <View style={styles.cardActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionIconBtn,
+                        { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
+                      ]}
+                      onPress={() => handleOpenEdit(item)}
+                    >
+                      <Text style={{ fontSize: 13 }}>✏️</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionIconBtn,
+                        { backgroundColor: theme.surfaceSubtle, borderColor: theme.border },
+                      ]}
+                      onPress={() => handleDelete(item.id, item.description)}
+                    >
+                      <Text style={{ fontSize: 13 }}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </ScrollView>
 
       {/* FAB FLUTUANTE NA ZONA DO POLEGAR */}
       <TouchableOpacity
@@ -455,10 +590,10 @@ export default function ExpensesScreen() {
         activeOpacity={0.85}
       >
         <Text style={styles.fabIcon}>＋</Text>
-        <Text style={styles.fabText}>Novo Gasto</Text>
+        <Text style={styles.fabText}>Novo Gastoo</Text>
       </TouchableOpacity>
 
-      {/* Modal de Calendário MUI */}
+      {/* MODAL DE CALENDÁRIO RANGE */}
       <CalendarRangePickerModal
         visible={calendarPickerVisible}
         onClose={() => setCalendarPickerVisible(false)}
@@ -476,14 +611,20 @@ export default function ExpensesScreen() {
         }}
       />
 
-      {/* Modal de Criação */}
+      {/* MODAL DE CRIAÇÃO */}
       <Modal visible={createModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <SafeAreaView style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Novo Lançamento</Text>
-              <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
-                <Text style={styles.closeText}>Fechar</Text>
+          <SafeAreaView style={[styles.modalSheet, { backgroundColor: theme.surface }]}>
+            <View style={styles.sheetHandleContainer}>
+              <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+            </View>
+
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                Novo Lançamento
+              </Text>
+              <TouchableOpacity onPress={() => setCreateModalVisible(false)} style={{ padding: 4 }}>
+                <Text style={[styles.closeText, { color: theme.primary }]}>Fechar</Text>
               </TouchableOpacity>
             </View>
 
@@ -510,20 +651,25 @@ export default function ExpensesScreen() {
                 onChangeText={setCustomDate}
               />
 
-              <Text style={styles.fieldLabel}>Escopo do Gasto</Text>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                Escopo do Gasto
+              </Text>
               <View style={styles.scopeSelector}>
                 <TouchableOpacity
                   style={[
                     styles.scopeOption,
-                    scope === RecordScope.SHARED && styles.scopeOptionActive,
+                    {
+                      backgroundColor: scope === RecordScope.SHARED ? theme.primaryLight : theme.inputBg,
+                      borderColor: scope === RecordScope.SHARED ? theme.primary : theme.inputBorder,
+                    },
                   ]}
                   onPress={() => setScope(RecordScope.SHARED)}
                 >
-                  <Text style={styles.scopeEmoji}>🏠</Text>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🏠</Text>
                   <Text
                     style={[
                       styles.scopeOptionText,
-                      scope === RecordScope.SHARED && styles.scopeOptionTextActive,
+                      { color: scope === RecordScope.SHARED ? theme.primary : theme.textPrimary },
                     ]}
                   >
                     Compartilhado
@@ -533,15 +679,18 @@ export default function ExpensesScreen() {
                 <TouchableOpacity
                   style={[
                     styles.scopeOption,
-                    scope === RecordScope.PRIVATE && styles.scopeOptionActive,
+                    {
+                      backgroundColor: scope === RecordScope.PRIVATE ? theme.primaryLight : theme.inputBg,
+                      borderColor: scope === RecordScope.PRIVATE ? theme.primary : theme.inputBorder,
+                    },
                   ]}
                   onPress={() => setScope(RecordScope.PRIVATE)}
                 >
-                  <Text style={styles.scopeEmoji}>🔒</Text>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🔒</Text>
                   <Text
                     style={[
                       styles.scopeOptionText,
-                      scope === RecordScope.PRIVATE && styles.scopeOptionTextActive,
+                      { color: scope === RecordScope.PRIVATE ? theme.primary : theme.textPrimary },
                     ]}
                   >
                     Privado (Individual)
@@ -549,27 +698,38 @@ export default function ExpensesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Categoria</Text>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginTop: 16 }]}>
+                Categoria
+              </Text>
               <View style={styles.categoryGrid}>
-                {Object.values(ExpenseCategory).map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.catChip,
-                      category === cat && styles.catChipActive,
-                    ]}
-                    onPress={() => setCategory(cat)}
-                  >
-                    <Text
+                {Object.values(ExpenseCategory).map((cat) => {
+                  const isCatSelected = category === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
                       style={[
-                        styles.catText,
-                        category === cat && styles.catTextActive,
+                        styles.catChip,
+                        {
+                          backgroundColor: isCatSelected ? theme.primary : theme.surfaceSubtle,
+                          borderColor: isCatSelected ? theme.primary : theme.border,
+                        },
                       ]}
+                      onPress={() => setCategory(cat)}
                     >
-                      {getCategoryLabel(cat)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.catText,
+                          {
+                            color: isCatSelected ? '#FFFFFF' : theme.textPrimary,
+                            fontWeight: isCatSelected ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        {getCategoryLabel(cat)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               <Button
@@ -583,14 +743,20 @@ export default function ExpensesScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Edição */}
+      {/* MODAL DE EDIÇÃO */}
       <Modal visible={editModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <SafeAreaView style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar Gasto</Text>
-              <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                <Text style={styles.closeText}>Fechar</Text>
+          <SafeAreaView style={[styles.modalSheet, { backgroundColor: theme.surface }]}>
+            <View style={styles.sheetHandleContainer}>
+              <View style={[styles.sheetHandle, { backgroundColor: theme.border }]} />
+            </View>
+
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                Editar Gasto
+              </Text>
+              <TouchableOpacity onPress={() => setEditModalVisible(false)} style={{ padding: 4 }}>
+                <Text style={[styles.closeText, { color: theme.primary }]}>Fechar</Text>
               </TouchableOpacity>
             </View>
 
@@ -617,20 +783,25 @@ export default function ExpensesScreen() {
                 onChangeText={setCustomDate}
               />
 
-              <Text style={styles.fieldLabel}>Escopo do Gasto</Text>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary }]}>
+                Escopo do Gasto
+              </Text>
               <View style={styles.scopeSelector}>
                 <TouchableOpacity
                   style={[
                     styles.scopeOption,
-                    scope === RecordScope.SHARED && styles.scopeOptionActive,
+                    {
+                      backgroundColor: scope === RecordScope.SHARED ? theme.primaryLight : theme.inputBg,
+                      borderColor: scope === RecordScope.SHARED ? theme.primary : theme.inputBorder,
+                    },
                   ]}
                   onPress={() => setScope(RecordScope.SHARED)}
                 >
-                  <Text style={styles.scopeEmoji}>🏠</Text>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🏠</Text>
                   <Text
                     style={[
                       styles.scopeOptionText,
-                      scope === RecordScope.SHARED && styles.scopeOptionTextActive,
+                      { color: scope === RecordScope.SHARED ? theme.primary : theme.textPrimary },
                     ]}
                   >
                     Compartilhado
@@ -640,15 +811,18 @@ export default function ExpensesScreen() {
                 <TouchableOpacity
                   style={[
                     styles.scopeOption,
-                    scope === RecordScope.PRIVATE && styles.scopeOptionActive,
+                    {
+                      backgroundColor: scope === RecordScope.PRIVATE ? theme.primaryLight : theme.inputBg,
+                      borderColor: scope === RecordScope.PRIVATE ? theme.primary : theme.inputBorder,
+                    },
                   ]}
                   onPress={() => setScope(RecordScope.PRIVATE)}
                 >
-                  <Text style={styles.scopeEmoji}>🔒</Text>
+                  <Text style={{ fontSize: 20, marginBottom: 4 }}>🔒</Text>
                   <Text
                     style={[
                       styles.scopeOptionText,
-                      scope === RecordScope.PRIVATE && styles.scopeOptionTextActive,
+                      { color: scope === RecordScope.PRIVATE ? theme.primary : theme.textPrimary },
                     ]}
                   >
                     Privado (Individual)
@@ -656,27 +830,38 @@ export default function ExpensesScreen() {
                 </TouchableOpacity>
               </View>
 
-              <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Categoria</Text>
+              <Text style={[styles.fieldLabel, { color: theme.textSecondary, marginTop: 16 }]}>
+                Categoria
+              </Text>
               <View style={styles.categoryGrid}>
-                {Object.values(ExpenseCategory).map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.catChip,
-                      category === cat && styles.catChipActive,
-                    ]}
-                    onPress={() => setCategory(cat)}
-                  >
-                    <Text
+                {Object.values(ExpenseCategory).map((cat) => {
+                  const isCatSelected = category === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
                       style={[
-                        styles.catText,
-                        category === cat && styles.catTextActive,
+                        styles.catChip,
+                        {
+                          backgroundColor: isCatSelected ? theme.primary : theme.surfaceSubtle,
+                          borderColor: isCatSelected ? theme.primary : theme.border,
+                        },
                       ]}
+                      onPress={() => setCategory(cat)}
                     >
-                      {getCategoryLabel(cat)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.catText,
+                          {
+                            color: isCatSelected ? '#FFFFFF' : theme.textPrimary,
+                            fontWeight: isCatSelected ? '700' : '500',
+                          },
+                        ]}
+                      >
+                        {getCategoryLabel(cat)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               <View style={{ marginTop: 24, gap: 12, marginBottom: 40 }}>
@@ -690,7 +875,7 @@ export default function ExpensesScreen() {
                     title="Excluir Gasto"
                     variant="ghost"
                     onPress={() => handleDelete(editingExpense.id, editingExpense.description)}
-                    style={{ borderColor: Colors.danger, borderWidth: 1 }}
+                    style={{ borderColor: theme.danger, borderWidth: 1 }}
                   />
                 )}
               </View>
@@ -703,15 +888,263 @@ export default function ExpensesScreen() {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 80,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  addButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  summaryCard: {
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  summaryTopRow: {
+    marginBottom: 12,
+  },
+  summaryTopLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  summaryTopValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginTop: 4,
+    letterSpacing: -0.5,
+  },
+  summarySplitRow: {
+    flexDirection: 'row',
+    paddingTop: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  summarySplitItem: {
+    flex: 1,
+  },
+  splitBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  summarySplitLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  summarySplitValue: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  summarySplitSub: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  verticalDivider: {
+    width: StyleSheet.hairlineWidth,
+    marginHorizontal: 14,
+  },
+  timeFilterSection: {
+    marginBottom: 14,
+  },
+  modeToggle: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    padding: 3,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 11,
+  },
+  modeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  monthSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  monthNavBtn: {
+    padding: 6,
+  },
+  monthNavText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  monthLabelContainer: {
+    alignItems: 'center',
+  },
+  monthLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  currentMonthBadge: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  currentMonthBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  periodFormCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  calendarTriggerCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  calendarTriggerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  calendarTriggerLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  calendarTriggerValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  calendarOpenBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  calendarOpenBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  periodActions: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  scopeChipsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  scopeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  scopeChipText: {
+    fontSize: 12,
+  },
+  listSection: {
+    marginTop: 4,
+  },
+  listSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  expenseCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 18,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  cardLeft: {
+    flex: 1,
+    marginRight: 12,
+  },
+  cardDesc: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  cardCategory: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  cardDate: {
+    fontSize: 11,
+  },
+  cardRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    minHeight: 56,
+  },
+  cardAmount: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+  },
+  actionIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
   fabButton: {
     position: 'absolute',
     bottom: 24,
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 28,
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    borderRadius: 26,
     gap: 8,
   },
   fabIcon: {
@@ -721,252 +1154,76 @@ const styles = StyleSheet.create({
   },
   fabText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  fabShadow: {
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { color: Colors.text, fontSize: 24, fontWeight: '800' },
-  addButton: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10 },
-  summaryBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: Colors.surface,
-    padding: 14,
-    borderRadius: 14,
-    marginTop: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  summaryLabel: { color: Colors.textSecondary, fontSize: 12 },
-  summaryValue: { color: Colors.text, fontSize: 17, fontWeight: '700', marginTop: 2 },
-  divider: { width: 1, backgroundColor: Colors.border },
-
-  // Time filter styles
-  timeFilterBar: {
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 10,
-  },
-  modeButton: {
-    flex: 1,
-    paddingVertical: 7,
-    alignItems: 'center',
-    borderRadius: 9,
-  },
-  modeButtonActive: {
-    backgroundColor: Colors.primary,
-  },
-  modeText: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  modeTextActive: {
-    color: '#FFF',
-  },
-  monthSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  monthNavBtn: {
-    padding: 8,
-  },
-  monthNavText: {
-    color: Colors.primary,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  monthLabelContainer: {
-    alignItems: 'center',
-  },
-  monthLabel: {
-    color: Colors.text,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  currentMonthBadge: {
-    marginTop: 2,
-    backgroundColor: Colors.primaryMuted,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  currentMonthBadgeText: {
-    color: Colors.primary,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  calendarTriggerCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.surfaceCard,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: 8,
-  },
-  calendarTriggerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  calendarIcon: {
-    fontSize: 22,
-  },
-  calendarTriggerLabel: {
-    color: Colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  calendarTriggerValue: {
-    color: Colors.text,
     fontSize: 14,
     fontWeight: '700',
-    marginTop: 2,
   },
-  calendarOpenBadge: {
-    backgroundColor: Colors.primaryMuted,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(10, 132, 255, 0.3)',
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
   },
-  calendarOpenBadgeText: {
-    color: Colors.primary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  periodForm: {
-    backgroundColor: Colors.surface,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  periodInputsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  periodActions: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-
-  // Scope chips
-  filterContainer: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 12 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  chipTextActive: { color: '#FFF' },
-  listContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  card: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  cardLeft: { flex: 1, marginRight: 12 },
-  cardDesc: { color: Colors.text, fontSize: 16, fontWeight: '700' },
-  cardCategory: { color: Colors.textSecondary, fontSize: 13, marginTop: 2 },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  cardDate: { color: Colors.textMuted, fontSize: 12 },
-  cardRight: { alignItems: 'flex-end', justifyContent: 'space-between', height: 60 },
-  cardAmount: { color: Colors.text, fontSize: 16, fontWeight: '800' },
-  cardActions: { flexDirection: 'row', gap: 6, marginTop: 6 },
-  actionIconBtn: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: Colors.inputBg,
-    borderWidth: 1,
-    borderColor: Colors.inputBorder,
-  },
-  actionIcon: { fontSize: 14 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     maxHeight: '90%',
+  },
+  sheetHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  sheetHandle: {
+    width: 38,
+    height: 5,
+    borderRadius: 3,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  modalTitle: { color: Colors.text, fontSize: 18, fontWeight: '700' },
-  closeText: { color: Colors.primary, fontSize: 15, fontWeight: '600' },
-  fieldLabel: { color: Colors.textSecondary, fontSize: 14, fontWeight: '500', marginBottom: 8 },
-  scopeSelector: { flexDirection: 'row', gap: 10 },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  closeText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  scopeSelector: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   scopeOption: {
     flex: 1,
-    backgroundColor: Colors.inputBg,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.inputBorder,
   },
-  scopeOptionActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
-  scopeEmoji: { fontSize: 20, marginBottom: 4 },
-  scopeOptionText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '600' },
-  scopeOptionTextActive: { color: Colors.primary },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  scopeOptionText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   catChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: Colors.inputBg,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.inputBorder,
   },
-  catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  catText: { color: Colors.textSecondary, fontSize: 12, fontWeight: '500' },
-  catTextActive: { color: '#FFF' },
+  catText: {
+    fontSize: 12,
+  },
 });

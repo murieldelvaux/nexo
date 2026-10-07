@@ -9,7 +9,7 @@ import {
   Platform,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
-import { Colors } from '../theme/colors';
+
 import { Button } from './Button';
 
 interface CalendarRangePickerModalProps {
@@ -56,7 +56,7 @@ export function CalendarRangePickerModal({
   onApply,
   onClear,
 }: CalendarRangePickerModalProps) {
-  const { theme: Colors, isDark } = useTheme();
+  const { theme, isDark } = useTheme();
   const today = useMemo(() => new Date(), []);
   const todayYmd = useMemo(() => {
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -214,19 +214,19 @@ export function CalendarRangePickerModal({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { backgroundColor: theme.surface, borderColor: theme.border }, theme.cardShadow]}>
           {/* Header */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.headerTitle}>Selecionar Período</Text>
-              <Text style={styles.headerSubtitle}>
+              <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Selecionar Período</Text>
+              <Text style={[styles.headerSubtitle, { color: theme.primary }]}>
                 {startDate
                   ? `${formatYmdToBr(startDate)} ${endDate ? 'até ' + formatYmdToBr(endDate) : '(selecione o fim)'}`
                   : 'Toque para escolher início e fim'}
               </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>✕</Text>
+              <Text style={[styles.closeBtnText, { color: theme.textSecondary }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
@@ -234,43 +234,43 @@ export function CalendarRangePickerModal({
             {/* Presets Rápidos */}
             <View style={styles.presetsRow}>
               <TouchableOpacity
-                style={styles.presetBadge}
+                style={[styles.presetBadge, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}
                 onPress={() => applyPreset('TODAY')}
               >
-                <Text style={styles.presetText}>Hoje</Text>
+                <Text style={[styles.presetText, { color: theme.textSecondary }]}>Hoje</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.presetBadge}
+                style={[styles.presetBadge, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}
                 onPress={() => applyPreset('LAST_7')}
               >
-                <Text style={styles.presetText}>7 Dias</Text>
+                <Text style={[styles.presetText, { color: theme.textSecondary }]}>7 Dias</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.presetBadge}
+                style={[styles.presetBadge, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}
                 onPress={() => applyPreset('THIS_MONTH')}
               >
-                <Text style={styles.presetText}>Este Mês</Text>
+                <Text style={[styles.presetText, { color: theme.textSecondary }]}>Este Mês</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.presetBadge}
+                style={[styles.presetBadge, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}
                 onPress={() => applyPreset('LAST_MONTH')}
               >
-                <Text style={styles.presetText}>Mês Anterior</Text>
+                <Text style={[styles.presetText, { color: theme.textSecondary }]}>Mês Anterior</Text>
               </TouchableOpacity>
             </View>
 
             {/* Navegação de Mês (Estilo MUI) */}
             <View style={styles.monthNavRow}>
-              <TouchableOpacity onPress={handlePrevMonth} style={styles.arrowBtn}>
-                <Text style={styles.arrowText}>◀</Text>
+              <TouchableOpacity onPress={handlePrevMonth} style={[styles.arrowBtn, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}>
+                <Text style={[styles.arrowText, { color: theme.primary }]}>◀</Text>
               </TouchableOpacity>
 
-              <Text style={styles.currentMonthLabel}>
+              <Text style={[styles.currentMonthLabel, { color: theme.textPrimary }]}>
                 {MONTH_NAMES[currentMonth - 1]} {currentYear}
               </Text>
 
-              <TouchableOpacity onPress={handleNextMonth} style={styles.arrowBtn}>
-                <Text style={styles.arrowText}>▶</Text>
+              <TouchableOpacity onPress={handleNextMonth} style={[styles.arrowBtn, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border }]}>
+                <Text style={[styles.arrowText, { color: theme.primary }]}>▶</Text>
               </TouchableOpacity>
             </View>
 
@@ -278,7 +278,7 @@ export function CalendarRangePickerModal({
             <View style={styles.weekDaysRow}>
               {WEEK_DAYS.map((wd) => (
                 <View key={wd} style={styles.weekDayCell}>
-                  <Text style={styles.weekDayText}>{wd}</Text>
+                  <Text style={[styles.weekDayText, { color: theme.textMuted }]}>{wd}</Text>
                 </View>
               ))}
             </View>
@@ -313,16 +313,16 @@ export function CalendarRangePickerModal({
                       onPress={() => handleSelectDay(item.ymd)}
                       style={[
                         styles.dayBtn,
-                        isToday && styles.dayBtnToday,
-                        (isStart || isEnd) && styles.dayBtnActive,
+                        isToday && styles.dayBtnToday, { borderColor: theme.primary },
+                        (isStart || isEnd) && styles.dayBtnActive, { backgroundColor: theme.primary },
                       ]}
                       activeOpacity={0.7}
                     >
                       <Text
                         style={[
-                          styles.dayText,
-                          isToday && styles.dayTextToday,
-                          isInRange && styles.dayTextRange,
+                          styles.dayText, { color: theme.textPrimary },
+                          isToday && styles.dayTextToday, { color: theme.primary },
+                          isInRange && styles.dayTextRange, { color: theme.textPrimary },
                           (isStart || isEnd) && styles.dayTextActive,
                         ]}
                       >
@@ -336,9 +336,9 @@ export function CalendarRangePickerModal({
           </ScrollView>
 
           {/* Rodapé com Ações */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, { borderTopColor: theme.border }]}>
             <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
-              <Text style={styles.clearBtnText}>Limpar</Text>
+              <Text style={[styles.clearBtnText, { color: theme.textSecondary }]}>Limpar</Text>
             </TouchableOpacity>
 
             <View style={styles.actionsRight}>
@@ -371,18 +371,11 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   modalContent: {
-    backgroundColor: Colors.surface,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.surfaceCardBorder,
     width: '100%',
     maxWidth: 380,
     padding: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
-      },
-    }),
   },
   header: {
     flexDirection: 'row',
@@ -393,11 +386,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.text,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: Colors.primary,
     marginTop: 2,
     fontWeight: '500',
   },
@@ -406,7 +397,6 @@ const styles = StyleSheet.create({
   },
   closeBtnText: {
     fontSize: 16,
-    color: Colors.textSecondary,
   },
   presetsRow: {
     flexDirection: 'row',
@@ -415,8 +405,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   presetBadge: {
-    backgroundColor: Colors.surfaceCard,
-    borderColor: Colors.border,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -424,7 +412,6 @@ const styles = StyleSheet.create({
   },
   presetText: {
     fontSize: 12,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
   monthNavRow: {
@@ -437,21 +424,18 @@ const styles = StyleSheet.create({
   currentMonthLabel: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.text,
   },
   arrowBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.surfaceCard,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   arrowText: {
-    color: Colors.primary,
     fontSize: 12,
+    fontWeight: '700',
   },
   weekDaysRow: {
     flexDirection: 'row',
@@ -466,7 +450,6 @@ const styles = StyleSheet.create({
   weekDayText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.textMuted,
     textTransform: 'uppercase',
   },
   daysGrid: {
@@ -485,15 +468,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dayCellRangeMid: {
-    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+    backgroundColor: 'rgba(2, 132, 199, 0.15)',
   },
   dayCellRangeStart: {
-    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+    backgroundColor: 'rgba(2, 132, 199, 0.15)',
     borderTopLeftRadius: 20,
     borderBottomLeftRadius: 20,
   },
   dayCellRangeEnd: {
-    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+    backgroundColor: 'rgba(2, 132, 199, 0.15)',
     borderTopRightRadius: 20,
     borderBottomRightRadius: 20,
   },
@@ -506,22 +489,17 @@ const styles = StyleSheet.create({
   },
   dayBtnToday: {
     borderWidth: 1.5,
-    borderColor: Colors.primary,
   },
   dayBtnActive: {
-    backgroundColor: Colors.primary,
   },
   dayText: {
     fontSize: 13,
-    color: Colors.text,
     fontWeight: '500',
   },
   dayTextToday: {
-    color: Colors.primary,
     fontWeight: '700',
   },
   dayTextRange: {
-    color: Colors.text,
     fontWeight: '600',
   },
   dayTextActive: {
@@ -533,7 +511,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
     paddingTop: 14,
     marginTop: 4,
   },
@@ -542,7 +519,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   clearBtnText: {
-    color: Colors.textSecondary,
     fontSize: 14,
   },
   actionsRight: {

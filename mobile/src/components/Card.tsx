@@ -1,20 +1,27 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeContext';
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: ViewStyle | ViewStyle[];
   variant?: 'default' | 'elevated' | 'bordered';
 }
 
 export const Card: React.FC<CardProps> = ({ children, style, variant = 'default' }) => {
+  const { theme } = useTheme();
+
   return (
     <View
       style={[
         styles.card,
-        variant === 'bordered' && styles.bordered,
-        variant === 'elevated' && styles.elevated,
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+        },
+        theme.cardShadow,
+        variant === 'bordered' && { borderWidth: 1, borderColor: theme.border },
+        variant === 'elevated' && theme.cardShadow,
         style,
       ]}
     >
@@ -25,19 +32,8 @@ export const Card: React.FC<CardProps> = ({ children, style, variant = 'default'
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.surfaceCard,
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
-  },
-  bordered: {
     borderWidth: 1,
-    borderColor: Colors.surfaceCardBorder,
-  },
-  elevated: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
   },
 });
