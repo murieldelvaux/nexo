@@ -40,6 +40,8 @@ export default function CalendarScreen() {
     refetch,
     createEvent,
     isCreating,
+    updateEvent,
+    isUpdating,
     deleteEvent,
     syncGoogle,
     isSyncingGoogle,
@@ -70,6 +72,17 @@ export default function CalendarScreen() {
   const [newEndTime, setNewEndTime] = useState('10:00');
   const [newScope, setNewScope] = useState<RecordScope>(RecordScope.SHARED);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
+  // Modal Editar Evento
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEventDto | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editIsAllDay, setEditIsAllDay] = useState(false);
+  const [editStartTime, setEditStartTime] = useState("09:00");
+  const [editEndTime, setEditEndTime] = useState("10:00");
+  const [editScope, setEditScope] = useState<RecordScope>(RecordScope.SHARED);
+
 
   // Navegação de mês
   const handlePrevMonth = () => {
@@ -283,6 +296,74 @@ export default function CalendarScreen() {
       setNewIsAllDay(false);
     } catch (err: any) {
       Alert.alert('Erro', 'Não foi possível cadastrar o evento');
+    }
+  };
+
+  const handleOpenEdit = (event: CalendarEventDto) => {
+    setEditingEvent(event);
+    setEditTitle(event.title);
+    setEditLocation(event.location || "");
+    setEditDescription(event.description || "");
+    setEditIsAllDay(event.isAllDay);
+    setEditScope(event.scope);
+
+    const s = new Date(event.startDate);
+    const startH = String(s.getHours()).padStart(2, "0") + ":" + String(s.getMinutes()).padStart(2, "0");
+    setEditStartTime(startH);
+
+    if (event.endDate) {
+      const e = new Date(event.endDate);
+      const endH = String(e.getHours()).padStart(2, "0") + ":" + String(e.getMinutes()).padStart(2, "0");
+      setEditEndTime(endH);
+    } else {
+      setEditEndTime("10:00");
+    }
+
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingEvent || !editTitle.trim()) {
+      if (Platform.OS === "web") {
+        window.alert("Informe o título do compromisso");
+      } else {
+        Alert.alert("Atenção", "Informe o título do compromisso");
+      }
+      return;
+    }
+
+    try {
+      const datePart = new Date(editingEvent.startDate).toISOString().slice(0, 10);
+      let startDateIso: string;
+      let endDateIso: string | undefined;
+
+      if (editIsAllDay) {
+        startDateIso = new Date(`${datePart}T00:00:00Z`).toISOString();
+        endDateIso = new Date(`${datePart}T23:59:59Z`).toISOString();
+      } else {
+        startDateIso = new Date(`${datePart}T${editStartTime}:00-03:00`).toISOString();
+        endDateIso = new Date(`${datePart}T${editEndTime}:00-03:00`).toISOString();
+      }
+
+      await updateEvent({
+        id: editingEvent.id,
+        dto: {
+          title: editTitle.trim(),
+          description: editDescription.trim() || undefined,
+          location: editLocation.trim() || undefined,
+          startDate: startDateIso,
+          endDate: endDateIso,
+          isAllDay: editIsAllDay,
+          scope: editScope,
+        },
+      });
+
+      setEditModalVisible(false);
+      setEditingEvent(null);
+      setSyncStatusMsg("Evento atualizado e sincronizado com Google! ✅");
+      setTimeout(() => setSyncStatusMsg(null), 4000);
+    } catch {
+      Alert.alert("Erro", "Não foi possível atualizar o evento.");
     }
   };
 
@@ -612,7 +693,11 @@ export default function CalendarScreen() {
                     theme.cardShadow,
                   ]}
                 >
-                  <View style={styles.eventCardContent}>
+                  <TouchableOpacity
+                    style={styles.eventCardContent}
+                    onPress={() => handleOpenEdit(item)}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.eventTimeRow}>
                       <Text style={[styles.eventTime, { color: theme.primary }]}>
                         ⏰ {timeString}
@@ -668,15 +753,25 @@ export default function CalendarScreen() {
                         {item.description}
                       </Text>
                     ) : null}
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.deleteBtn}
-                    onPress={() => handleDeleteEvent(item)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.deleteBtnText, { color: theme.danger }]}>🗑️</Text>
                   </TouchableOpacity>
+
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <TouchableOpacity
+                      style={styles.actionIconBtn}
+                      onPress={() => handleOpenEdit(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.actionIconBtn}
+                      onPress={() => handleDeleteEvent(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.deleteBtnText, { color: theme.danger }]}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               );
             })
@@ -905,6 +1000,216 @@ export default function CalendarScreen() {
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={styles.saveBtnText}>Adicionar à Agenda</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL: EDITAR EVENTO */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              theme.cardShadow,
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+                ✏️ Editar Compromisso
+              </Text>
+              <TouchableOpacity
+                onPress={() => setEditModalVisible(false)}
+                style={[styles.modalCloseBtn, { backgroundColor: theme.surfaceSubtle }]}
+              >
+                <Text style={{ fontSize: 16, color: theme.textPrimary, fontWeight: "700" }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Título do Evento</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.surfaceSubtle,
+                    borderColor: theme.border,
+                    color: theme.textPrimary,
+                  },
+                ]}
+                placeholder="Ex: Reunião, Dentista..."
+                placeholderTextColor={theme.textMuted}
+                value={editTitle}
+                onChangeText={setEditTitle}
+              />
+
+              {/* Toggle Dia Inteiro */}
+              <View style={styles.switchRow}>
+                <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>
+                  Dia inteiro
+                </Text>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleSwitch,
+                    { backgroundColor: editIsAllDay ? theme.primary : theme.surfaceSubtle },
+                  ]}
+                  onPress={() => setEditIsAllDay(!editIsAllDay)}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.toggleKnob,
+                      editIsAllDay && { alignSelf: "flex-end", backgroundColor: "#FFFFFF" },
+                    ]}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {!editIsAllDay && (
+                <View style={styles.timeRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Início (HH:MM)</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: theme.surfaceSubtle,
+                          borderColor: theme.border,
+                          color: theme.textPrimary,
+                        },
+                      ]}
+                      value={editStartTime}
+                      onChangeText={setEditStartTime}
+                      placeholder="09:00"
+                      placeholderTextColor={theme.textMuted}
+                    />
+                  </View>
+                  <View style={{ width: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Término (HH:MM)</Text>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: theme.surfaceSubtle,
+                          borderColor: theme.border,
+                          color: theme.textPrimary,
+                        },
+                      ]}
+                      value={editEndTime}
+                      onChangeText={setEditEndTime}
+                      placeholder="10:00"
+                      placeholderTextColor={theme.textMuted}
+                    />
+                  </View>
+                </View>
+              )}
+
+              <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+                Local / Link
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.surfaceSubtle,
+                    borderColor: theme.border,
+                    color: theme.textPrimary,
+                  },
+                ]}
+                placeholder="Ex: Consultório, Google Meet, Casa..."
+                placeholderTextColor={theme.textMuted}
+                value={editLocation}
+                onChangeText={setEditLocation}
+              />
+
+              <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+                Escopo do Evento
+              </Text>
+              <View style={styles.scopeSelector}>
+                <TouchableOpacity
+                  style={[
+                    styles.scopeOption,
+                    editScope === RecordScope.SHARED && {
+                      backgroundColor: theme.primaryLight,
+                      borderColor: theme.primary,
+                    },
+                    { borderColor: theme.border },
+                  ]}
+                  onPress={() => setEditScope(RecordScope.SHARED)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.scopeOptionText,
+                      { color: editScope === RecordScope.SHARED ? theme.primary : theme.textSecondary },
+                    ]}
+                  >
+                    🏠 Compartilhado
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.scopeOption,
+                    editScope === RecordScope.PRIVATE && {
+                      backgroundColor: theme.primaryLight,
+                      borderColor: theme.primary,
+                    },
+                    { borderColor: theme.border },
+                  ]}
+                  onPress={() => setEditScope(RecordScope.PRIVATE)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      styles.scopeOptionText,
+                      { color: editScope === RecordScope.PRIVATE ? theme.primary : theme.textSecondary },
+                    ]}
+                  >
+                    🔒 Pessoal
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
+                Notas / Descrição
+              </Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.surfaceSubtle,
+                    borderColor: theme.border,
+                    color: theme.textPrimary,
+                    height: 60,
+                  },
+                ]}
+                placeholder="Detalhes ou observações..."
+                placeholderTextColor={theme.textMuted}
+                value={editDescription}
+                onChangeText={setEditDescription}
+                multiline
+              />
+
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: theme.primary }]}
+                onPress={handleSaveEdit}
+                disabled={isUpdating}
+                activeOpacity={0.8}
+              >
+                {isUpdating ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>💾 Salvar e Sincronizar com Google</Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
@@ -1161,6 +1466,10 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     padding: 8,
+  },
+  actionIconBtn: {
+    padding: 8,
+    borderRadius: 8,
   },
   deleteBtnText: {
     fontSize: 16,

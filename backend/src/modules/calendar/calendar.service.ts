@@ -125,24 +125,38 @@ export class CalendarService {
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    let googleEventId = existing.googleEventId;
 
-    // Atualiza no Google Calendar caso já esteja vinculado
-    if (existing.googleEventId && user?.googleAccessToken) {
-      try {
-        await this.updateGoogleCalendarEvent(
-          user.googleAccessToken,
-          existing.googleEventId,
-          {
-            title: dto.title || existing.title,
-            description: dto.description ?? existing.description ?? undefined,
-            startDate: dto.startDate ? new Date(dto.startDate) : existing.startDate,
-            endDate: dto.endDate ? new Date(dto.endDate) : (existing.endDate || undefined),
-            isAllDay: dto.isAllDay !== undefined ? dto.isAllDay : existing.isAllDay,
-            location: dto.location ?? existing.location ?? undefined,
-          },
-        );
-      } catch (err: any) {
-        this.logger.warn(`Falha ao atualizar evento no Google Agenda: ${err?.message || err}`);
+    if (user?.googleAccessToken) {
+      const eventDetails = {
+        title: dto.title || existing.title,
+        description: dto.description !== undefined ? (dto.description || undefined) : (existing.description || undefined),
+        startDate: dto.startDate ? new Date(dto.startDate) : existing.startDate,
+        endDate: dto.endDate !== undefined ? (dto.endDate ? new Date(dto.endDate) : undefined) : (existing.endDate || undefined),
+        isAllDay: dto.isAllDay !== undefined ? dto.isAllDay : existing.isAllDay,
+        location: dto.location !== undefined ? (dto.location || undefined) : (existing.location || undefined),
+      };
+
+      if (googleEventId && !googleEventId.startsWith('dev_event_')) {
+        try {
+          await this.updateGoogleCalendarEvent(
+            user.googleAccessToken,
+            googleEventId,
+            eventDetails,
+          );
+        } catch (err: any) {
+          this.logger.warn(`Falha ao atualizar evento no Google Agenda: ${err?.message || err}`);
+        }
+      } else {
+        // Se ainda não tinha googleEventId no Google Agenda, cria agora
+        try {
+          const newGId = await this.pushToGoogleCalendar(user.googleAccessToken, eventDetails);
+          if (newGId) {
+            googleEventId = newGId;
+          }
+        } catch (err: any) {
+          this.logger.warn(`Falha ao exportar evento atualizado para Google Agenda: ${err?.message || err}`);
+        }
       }
     }
 
@@ -156,6 +170,7 @@ export class CalendarService {
         ...(dto.isAllDay !== undefined && { isAllDay: dto.isAllDay }),
         ...(dto.location !== undefined && { location: dto.location }),
         ...(dto.scope && { scope: dto.scope }),
+        ...(googleEventId && { googleEventId }),
       },
       include: {
         user: { select: { id: true, name: true, avatarUrl: true } },
@@ -440,6 +455,9 @@ export class CalendarService {
   }
 
   private async deleteGoogleCalendarEvent(token: string, googleEventId: string) {
+    if (token.startsWith("dev_token_") || token.startsWith("AIzaSy")) {
+      return;
+    }
     await axios.delete(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
       {
