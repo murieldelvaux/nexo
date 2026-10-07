@@ -79,6 +79,7 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         householdId: user.householdId,
         avatarUrl: user.avatarUrl,
+        googleAccessToken: user.googleAccessToken,
       },
     };
   }
@@ -122,6 +123,7 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         householdId: user.householdId,
         avatarUrl: user.avatarUrl,
+        googleAccessToken: user.googleAccessToken,
       },
     };
   }
@@ -236,6 +238,7 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         householdId: user.householdId,
         avatarUrl: user.avatarUrl,
+        googleAccessToken: user.googleAccessToken,
       },
     };
   }

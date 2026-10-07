@@ -58,6 +58,7 @@ export interface AuthResponseDto {
     phoneNumber: string | null;
     householdId: string | null;
     avatarUrl?: string | null;
+    googleAccessToken?: string | null;
   };
 }
 

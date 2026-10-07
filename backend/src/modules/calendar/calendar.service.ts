@@ -318,14 +318,10 @@ export class CalendarService {
       this.logger.error(`Erro ao sincronizar com Google Calendar: ${err?.message || err}`);
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
-        await this.prisma.user.update({
-          where: { id: userId },
-          data: { googleAccessToken: null },
-        });
         return {
           success: false,
           needsConnect: true,
-          message: 'Permissão da agenda expirada ou revogada. Clique em "Conectar Google Agenda" para autorizar.',
+          message: 'Permissão da agenda pendente ou expirada. Clique em "Conectar Google Agenda".',
           error: err?.message,
         };
       }
