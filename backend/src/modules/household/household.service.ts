@@ -78,6 +78,14 @@ export class HouseholdService {
       return null;
     }
 
+    if (user.googleAccessToken && user.household.googleAccessToken !== user.googleAccessToken) {
+      await this.prisma.household.update({
+        where: { id: user.household.id },
+        data: { googleAccessToken: user.googleAccessToken },
+      });
+      user.household.googleAccessToken = user.googleAccessToken;
+    }
+
     return user.household;
   }
 }

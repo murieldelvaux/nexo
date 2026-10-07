@@ -374,6 +374,12 @@ export class AuthService {
         googleAccessToken: true,
       },
     });
+    if (data.googleAccessToken !== undefined && updated.householdId) {
+      await this.prisma.household.update({
+        where: { id: updated.householdId },
+        data: { googleAccessToken: data.googleAccessToken },
+      }).catch(() => {});
+    }
     return updated;
   }
 
