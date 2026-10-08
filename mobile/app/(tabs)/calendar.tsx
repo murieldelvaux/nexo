@@ -19,6 +19,12 @@ import { useGoogleCalendarAuth } from '../../src/hooks/useGoogleCalendarAuth';
 import { maskTime } from '../../src/utils/format';
 import { RecordScope, CalendarEventDto } from '../../../packages/shared/src';
 
+export function extractMeetLink(location?: string | null, description?: string | null): string | null {
+  const combined = `${location || ''} ${description || ''}`;
+  const match = combined.match(/https?:\/\/(?:meet\.google\.com\/[a-z0-9-]+|[a-z0-9-]+\.zoom\.us\/j\/[a-z0-9-]+|teams\.microsoft\.com\/[^\s]+)/i);
+  return match ? match[0] : null;
+}
+
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -66,22 +72,31 @@ export default function CalendarScreen() {
   // Modal Novo Evento
   const [modalVisible, setModalVisible] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  const [newStartDateStr, setNewStartDateStr] = useState(selectedDateStr);
+  const [newEndDateStr, setNewEndDateStr] = useState(selectedDateStr);
+  const [newIsMultiDay, setNewIsMultiDay] = useState(false);
   const [newLocation, setNewLocation] = useState('');
+  const [newMeetLink, setNewMeetLink] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newIsAllDay, setNewIsAllDay] = useState(false);
   const [newStartTime, setNewStartTime] = useState('09:00');
   const [newEndTime, setNewEndTime] = useState('10:00');
   const [newScope, setNewScope] = useState<RecordScope>(RecordScope.SHARED);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
+
   // Modal Editar Evento
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEventDto | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editLocation, setEditLocation] = useState("");
-  const [editDescription, setEditDescription] = useState("");
+  const [editTitle, setEditTitle] = useState('');
+  const [editStartDateStr, setEditStartDateStr] = useState('');
+  const [editEndDateStr, setEditEndDateStr] = useState('');
+  const [editIsMultiDay, setEditIsMultiDay] = useState(false);
+  const [editLocation, setEditLocation] = useState('');
+  const [editMeetLink, setEditMeetLink] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [editIsAllDay, setEditIsAllDay] = useState(false);
-  const [editStartTime, setEditStartTime] = useState("09:00");
-  const [editEndTime, setEditEndTime] = useState("10:00");
+  const [editStartTime, setEditStartTime] = useState('09:00');
+  const [editEndTime, setEditEndTime] = useState('10:00');
   const [editScope, setEditScope] = useState<RecordScope>(RecordScope.SHARED);
 
 
@@ -183,13 +198,28 @@ export default function CalendarScreen() {
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEventDto[]>();
     for (const ev of events) {
-      // Data ISO local ou UTC
-      const d = new Date(ev.startDate);
-      const dStr = d.toISOString().slice(0, 10);
-      if (!map.has(dStr)) {
-        map.set(dStr, []);
+      const s = new Date(ev.startDate);
+      const e = ev.endDate ? new Date(ev.endDate) : s;
+
+      const startDay = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+      const endDay = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+
+      const current = new Date(startDay.getTime());
+      let safetyCounter = 0;
+      while (current <= endDay && safetyCounter < 90) {
+        const y = current.getFullYear();
+        const m = String(current.getMonth() + 1).padStart(2, '0');
+        const d = String(current.getDate()).padStart(2, '0');
+        const dateKey = `${y}-${m}-${d}`;
+
+        if (!map.has(dateKey)) {
+          map.set(dateKey, []);
+        }
+        map.get(dateKey)!.push(ev);
+
+        current.setDate(current.getDate() + 1);
+        safetyCounter++;
       }
-      map.get(dStr)!.push(ev);
     }
     return map;
   }, [events]);
@@ -257,6 +287,21 @@ export default function CalendarScreen() {
     }
   };
 
+  const handleOpenNewEvent = () => {
+    setNewTitle('');
+    setNewStartDateStr(selectedDateStr);
+    setNewEndDateStr(selectedDateStr);
+    setNewIsMultiDay(false);
+    setNewLocation('');
+    setNewMeetLink('');
+    setNewDescription('');
+    setNewIsAllDay(false);
+    setNewStartTime('09:00');
+    setNewEndTime('10:00');
+    setNewScope(RecordScope.SHARED);
+    setModalVisible(true);
+  };
+
   // Salvar Novo Evento
   const handleSaveEvent = async () => {
     if (!newTitle.trim()) {
@@ -269,21 +314,34 @@ export default function CalendarScreen() {
     }
 
     try {
+      const startDay = newStartDateStr || selectedDateStr;
+      const endDay = newIsMultiDay && newEndDateStr >= startDay ? newEndDateStr : startDay;
+
       let startDateIso: string;
       let endDateIso: string | undefined;
 
       if (newIsAllDay) {
-        startDateIso = new Date(`${selectedDateStr}T00:00:00Z`).toISOString();
-        endDateIso = new Date(`${selectedDateStr}T23:59:59Z`).toISOString();
+        startDateIso = new Date(`${startDay}T00:00:00-03:00`).toISOString();
+        endDateIso = new Date(`${endDay}T23:59:59-03:00`).toISOString();
       } else {
-        startDateIso = new Date(`${selectedDateStr}T${newStartTime}:00-03:00`).toISOString();
-        endDateIso = new Date(`${selectedDateStr}T${newEndTime}:00-03:00`).toISOString();
+        startDateIso = new Date(`${startDay}T${newStartTime}:00-03:00`).toISOString();
+        endDateIso = new Date(`${endDay}T${newEndTime}:00-03:00`).toISOString();
+      }
+
+      let finalLocation = newLocation.trim();
+      if (newMeetLink.trim()) {
+        const link = newMeetLink.trim();
+        if (!finalLocation) {
+          finalLocation = link;
+        } else if (!finalLocation.includes(link)) {
+          finalLocation = `${finalLocation} | ${link}`;
+        }
       }
 
       await createEvent({
         title: newTitle.trim(),
         description: newDescription.trim() || undefined,
-        location: newLocation.trim() || undefined,
+        location: finalLocation || undefined,
         startDate: startDateIso,
         endDate: endDateIso,
         isAllDay: newIsAllDay,
@@ -293,6 +351,7 @@ export default function CalendarScreen() {
       setModalVisible(false);
       setNewTitle('');
       setNewLocation('');
+      setNewMeetLink('');
       setNewDescription('');
       setNewIsAllDay(false);
     } catch (err: any) {
@@ -303,21 +362,36 @@ export default function CalendarScreen() {
   const handleOpenEdit = (event: CalendarEventDto) => {
     setEditingEvent(event);
     setEditTitle(event.title);
-    setEditLocation(event.location || "");
-    setEditDescription(event.description || "");
+    setEditDescription(event.description || '');
     setEditIsAllDay(event.isAllDay);
     setEditScope(event.scope);
 
     const s = new Date(event.startDate);
-    const startH = String(s.getHours()).padStart(2, "0") + ":" + String(s.getMinutes()).padStart(2, "0");
+    const startStr = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`;
+    setEditStartDateStr(startStr);
+
+    const e = event.endDate ? new Date(event.endDate) : s;
+    const endStr = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}`;
+    setEditEndDateStr(endStr);
+    setEditIsMultiDay(endStr !== startStr);
+
+    const detectedMeet = extractMeetLink(event.location, event.description);
+    setEditMeetLink(detectedMeet || '');
+
+    let cleanLoc = event.location || '';
+    if (detectedMeet && cleanLoc.includes(detectedMeet)) {
+      cleanLoc = cleanLoc.replace(detectedMeet, '').replace(/\|\s*$/, '').trim();
+    }
+    setEditLocation(cleanLoc);
+
+    const startH = String(s.getHours()).padStart(2, '0') + ':' + String(s.getMinutes()).padStart(2, '0');
     setEditStartTime(startH);
 
     if (event.endDate) {
-      const e = new Date(event.endDate);
-      const endH = String(e.getHours()).padStart(2, "0") + ":" + String(e.getMinutes()).padStart(2, "0");
+      const endH = String(e.getHours()).padStart(2, '0') + ':' + String(e.getMinutes()).padStart(2, '0');
       setEditEndTime(endH);
     } else {
-      setEditEndTime("10:00");
+      setEditEndTime('10:00');
     }
 
     setEditModalVisible(true);
@@ -325,25 +399,37 @@ export default function CalendarScreen() {
 
   const handleSaveEdit = async () => {
     if (!editingEvent || !editTitle.trim()) {
-      if (Platform.OS === "web") {
-        window.alert("Informe o título do compromisso");
+      if (Platform.OS === 'web') {
+        window.alert('Informe o título do compromisso');
       } else {
-        Alert.alert("Atenção", "Informe o título do compromisso");
+        Alert.alert('Atenção', 'Informe o título do compromisso');
       }
       return;
     }
 
     try {
-      const datePart = new Date(editingEvent.startDate).toISOString().slice(0, 10);
+      const startDay = editStartDateStr || selectedDateStr;
+      const endDay = editIsMultiDay && editEndDateStr >= startDay ? editEndDateStr : startDay;
+
       let startDateIso: string;
       let endDateIso: string | undefined;
 
       if (editIsAllDay) {
-        startDateIso = new Date(`${datePart}T00:00:00Z`).toISOString();
-        endDateIso = new Date(`${datePart}T23:59:59Z`).toISOString();
+        startDateIso = new Date(`${startDay}T00:00:00-03:00`).toISOString();
+        endDateIso = new Date(`${endDay}T23:59:59-03:00`).toISOString();
       } else {
-        startDateIso = new Date(`${datePart}T${editStartTime}:00-03:00`).toISOString();
-        endDateIso = new Date(`${datePart}T${editEndTime}:00-03:00`).toISOString();
+        startDateIso = new Date(`${startDay}T${editStartTime}:00-03:00`).toISOString();
+        endDateIso = new Date(`${endDay}T${editEndTime}:00-03:00`).toISOString();
+      }
+
+      let finalLocation = editLocation.trim();
+      if (editMeetLink.trim()) {
+        const link = editMeetLink.trim();
+        if (!finalLocation) {
+          finalLocation = link;
+        } else if (!finalLocation.includes(link)) {
+          finalLocation = `${finalLocation} | ${link}`;
+        }
       }
 
       await updateEvent({
@@ -351,7 +437,7 @@ export default function CalendarScreen() {
         dto: {
           title: editTitle.trim(),
           description: editDescription.trim() || undefined,
-          location: editLocation.trim() || undefined,
+          location: finalLocation || undefined,
           startDate: startDateIso,
           endDate: endDateIso,
           isAllDay: editIsAllDay,
@@ -361,10 +447,10 @@ export default function CalendarScreen() {
 
       setEditModalVisible(false);
       setEditingEvent(null);
-      setSyncStatusMsg("Evento atualizado e sincronizado com Google! ✅");
+      setSyncStatusMsg('Evento atualizado e sincronizado com Google! ✅');
       setTimeout(() => setSyncStatusMsg(null), 4000);
     } catch {
-      Alert.alert("Erro", "Não foi possível atualizar o evento.");
+      Alert.alert('Erro', 'Não foi possível atualizar o evento.');
     }
   };
 
@@ -399,7 +485,7 @@ export default function CalendarScreen() {
         rightAction={
           <TouchableOpacity
             style={[styles.newEventHeaderBtn, { backgroundColor: theme.primary }]}
-            onPress={() => setModalVisible(true)}
+            onPress={handleOpenNewEvent}
             activeOpacity={0.8}
           >
             <Text style={styles.newEventHeaderBtnText}>+ Evento</Text>
@@ -642,7 +728,7 @@ export default function CalendarScreen() {
 
             <TouchableOpacity
               style={[styles.addEventInlineBtn, { backgroundColor: theme.primaryLight }]}
-              onPress={() => setModalVisible(true)}
+              onPress={handleOpenNewEvent}
               activeOpacity={0.7}
             >
               <Text style={[styles.addEventInlineBtnText, { color: theme.primary }]}>
@@ -672,6 +758,17 @@ export default function CalendarScreen() {
           ) : (
             selectedDayEvents.map((item) => {
               const start = new Date(item.startDate);
+              const end = item.endDate ? new Date(item.endDate) : start;
+
+              const isMultiDayEvent =
+                start.getFullYear() !== end.getFullYear() ||
+                start.getMonth() !== end.getMonth() ||
+                start.getDate() !== end.getDate();
+
+              const multiDayLabel = isMultiDayEvent
+                ? `📆 ${start.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} até ${end.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`
+                : null;
+
               const timeString = item.isAllDay
                 ? 'Dia Inteiro'
                 : start.toLocaleTimeString('pt-BR', {
@@ -680,6 +777,17 @@ export default function CalendarScreen() {
                   });
 
               const isShared = item.scope === RecordScope.SHARED;
+              const meetUrl = extractMeetLink(item.location, item.description);
+
+              // Remove link do Meet da localização para não duplicar visualmente
+              let displayLocation = item.location || '';
+              if (meetUrl && displayLocation.includes(meetUrl)) {
+                displayLocation = displayLocation
+                  .replace(meetUrl, '')
+                  .replace(/\|\s*$/, '')
+                  .replace(/^\s*\|\s*/, '')
+                  .trim();
+              }
 
               return (
                 <View
@@ -705,6 +813,29 @@ export default function CalendarScreen() {
                       </Text>
 
                       <View style={styles.badgeRow}>
+                        {multiDayLabel ? (
+                          <View
+                            style={[
+                              styles.scopeBadge,
+                              {
+                                backgroundColor: isDark ? '#451A03' : '#FEF3C7',
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.scopeBadgeText,
+                                {
+                                  color: isDark ? '#FCD34D' : '#B45309',
+                                  fontWeight: '700',
+                                },
+                              ]}
+                            >
+                              {multiDayLabel}
+                            </Text>
+                          </View>
+                        ) : null}
+
                         {item.googleEventId ? (
                           <View style={[styles.scopeBadge, { backgroundColor: '#E0F2FE' }]}>
                             <Text style={[styles.scopeBadgeText, { color: '#0369A1' }]}>
@@ -743,9 +874,37 @@ export default function CalendarScreen() {
                       {item.title}
                     </Text>
 
-                    {item.location ? (
+                    {/* BOTÃO PROEMINENTE DO GOOGLE MEET */}
+                    {meetUrl && (
+                      <TouchableOpacity
+                        style={[
+                          styles.meetCallBtn,
+                          {
+                            backgroundColor: isDark ? '#064E3B' : '#DCFCE7',
+                            borderColor: '#10B981',
+                          },
+                        ]}
+                        onPress={() => {
+                          if (Platform.OS === 'web') {
+                            window.open(meetUrl, '_blank');
+                          } else {
+                            Linking.openURL(meetUrl);
+                          }
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.meetCallBtnText, { color: isDark ? '#6EE7B7' : '#047857' }]}>
+                          🎥 Entrar no Google Meet
+                        </Text>
+                        <Text style={[styles.meetCallBtnSub, { color: isDark ? '#A7F3D0' : '#065F46' }]}>
+                          ↗ Acessar chamada
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {displayLocation ? (
                       <Text style={[styles.eventLocation, { color: theme.textSecondary }]}>
-                        📍 {item.location}
+                        📍 {displayLocation}
                       </Text>
                     ) : null}
 
@@ -756,7 +915,7 @@ export default function CalendarScreen() {
                     ) : null}
                   </TouchableOpacity>
 
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                     <TouchableOpacity
                       style={styles.actionIconBtn}
                       onPress={() => handleOpenEdit(item)}
@@ -824,22 +983,116 @@ export default function CalendarScreen() {
                 onChangeText={setNewTitle}
               />
 
-              <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
-                Data Selecionada
-              </Text>
-              <View
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.surfaceSubtle,
-                    borderColor: theme.border,
-                    justifyContent: 'center',
-                  },
-                ]}
-              >
-                <Text style={{ color: theme.textPrimary, fontWeight: '600' }}>
-                  🗓️ {selectedDateFormatted}
-                </Text>
+              {/* DURAÇÃO: MÚLTIPLOS DIAS */}
+              <View style={styles.switchRow}>
+                <View>
+                  <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>
+                    Duração de múltiplos dias
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+                    O evento dura mais de um dia consecutivo
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleSwitch,
+                    { backgroundColor: newIsMultiDay ? theme.primary : theme.surfaceSubtle },
+                  ]}
+                  onPress={() => {
+                    const next = !newIsMultiDay;
+                    setNewIsMultiDay(next);
+                    if (!next) {
+                      setNewEndDateStr(newStartDateStr);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.toggleKnob,
+                      newIsMultiDay && { alignSelf: 'flex-end', backgroundColor: '#FFFFFF' },
+                    ]}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* DATAS DE INÍCIO E TÉRMINO */}
+              <View style={styles.timeRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    Data de Início
+                  </Text>
+                  {Platform.OS === 'web' ? (
+                    <input
+                      type="date"
+                      value={newStartDateStr}
+                      onChange={(e: any) => {
+                        const val = e.target.value;
+                        setNewStartDateStr(val);
+                        if (!newIsMultiDay || newEndDateStr < val) {
+                          setNewEndDateStr(val);
+                        }
+                      }}
+                      style={{
+                        backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                        color: isDark ? '#F1F5F9' : '#0F172A',
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        fontSize: 14,
+                        outline: 'none',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  ) : (
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border, color: theme.textPrimary }]}
+                      value={newStartDateStr}
+                      onChangeText={setNewStartDateStr}
+                      placeholder="AAAA-MM-DD"
+                      placeholderTextColor={theme.textMuted}
+                    />
+                  )}
+                </View>
+
+                {newIsMultiDay && (
+                  <>
+                    <View style={{ width: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                        Data de Término
+                      </Text>
+                      {Platform.OS === 'web' ? (
+                        <input
+                          type="date"
+                          value={newEndDateStr}
+                          min={newStartDateStr}
+                          onChange={(e: any) => setNewEndDateStr(e.target.value)}
+                          style={{
+                            backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                            color: isDark ? '#F1F5F9' : '#0F172A',
+                            border: `1px solid ${theme.border}`,
+                            borderRadius: 12,
+                            padding: '10px 12px',
+                            fontSize: 14,
+                            outline: 'none',
+                            width: '100%',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      ) : (
+                        <TextInput
+                          style={[styles.input, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border, color: theme.textPrimary }]}
+                          value={newEndDateStr}
+                          onChangeText={setNewEndDateStr}
+                          placeholder="AAAA-MM-DD"
+                          placeholderTextColor={theme.textMuted}
+                        />
+                      )}
+                    </View>
+                  </>
+                )}
               </View>
 
               {/* Toggle Dia Inteiro */}
@@ -908,8 +1161,41 @@ export default function CalendarScreen() {
                 </View>
               )}
 
+              {/* GOOGLE MEET LINK */}
+              <View style={{ marginTop: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary, marginBottom: 0 }]}>
+                    🎥 Link do Google Meet / Reunião
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setNewMeetLink('https://meet.google.com/new')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 11, color: theme.primary, fontWeight: '700' }}>
+                      + Gerar Link
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.surfaceSubtle,
+                      borderColor: theme.border,
+                      color: theme.textPrimary,
+                    },
+                  ]}
+                  placeholder="https://meet.google.com/xyz-abcd-efg"
+                  placeholderTextColor={theme.textMuted}
+                  value={newMeetLink}
+                  onChangeText={setNewMeetLink}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
               <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
-                Local / Link
+                Local Físico (Opcional)
               </Text>
               <TextInput
                 style={[
@@ -920,7 +1206,7 @@ export default function CalendarScreen() {
                     color: theme.textPrimary,
                   },
                 ]}
-                placeholder="Ex: Consultório, Google Meet, Casa..."
+                placeholder="Ex: Consultório, Sala de Reunião, Casa..."
                 placeholderTextColor={theme.textMuted}
                 value={newLocation}
                 onChangeText={setNewLocation}
@@ -1035,7 +1321,7 @@ export default function CalendarScreen() {
                 onPress={() => setEditModalVisible(false)}
                 style={[styles.modalCloseBtn, { backgroundColor: theme.surfaceSubtle }]}
               >
-                <Text style={{ fontSize: 16, color: theme.textPrimary, fontWeight: "700" }}>✕</Text>
+                <Text style={{ fontSize: 16, color: theme.textPrimary, fontWeight: '700' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -1056,6 +1342,118 @@ export default function CalendarScreen() {
                 onChangeText={setEditTitle}
               />
 
+              {/* DURAÇÃO: MÚLTIPLOS DIAS */}
+              <View style={styles.switchRow}>
+                <View>
+                  <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>
+                    Duração de múltiplos dias
+                  </Text>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+                    O evento dura mais de um dia consecutivo
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleSwitch,
+                    { backgroundColor: editIsMultiDay ? theme.primary : theme.surfaceSubtle },
+                  ]}
+                  onPress={() => {
+                    const next = !editIsMultiDay;
+                    setEditIsMultiDay(next);
+                    if (!next) {
+                      setEditEndDateStr(editStartDateStr);
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.toggleKnob,
+                      editIsMultiDay && { alignSelf: 'flex-end', backgroundColor: '#FFFFFF' },
+                    ]}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* DATAS DE INÍCIO E TÉRMINO */}
+              <View style={styles.timeRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    Data de Início
+                  </Text>
+                  {Platform.OS === 'web' ? (
+                    <input
+                      type="date"
+                      value={editStartDateStr}
+                      onChange={(e: any) => {
+                        const val = e.target.value;
+                        setEditStartDateStr(val);
+                        if (!editIsMultiDay || editEndDateStr < val) {
+                          setEditEndDateStr(val);
+                        }
+                      }}
+                      style={{
+                        backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                        color: isDark ? '#F1F5F9' : '#0F172A',
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        fontSize: 14,
+                        outline: 'none',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  ) : (
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border, color: theme.textPrimary }]}
+                      value={editStartDateStr}
+                      onChangeText={setEditStartDateStr}
+                      placeholder="AAAA-MM-DD"
+                      placeholderTextColor={theme.textMuted}
+                    />
+                  )}
+                </View>
+
+                {editIsMultiDay && (
+                  <>
+                    <View style={{ width: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                        Data de Término
+                      </Text>
+                      {Platform.OS === 'web' ? (
+                        <input
+                          type="date"
+                          value={editEndDateStr}
+                          min={editStartDateStr}
+                          onChange={(e: any) => setEditEndDateStr(e.target.value)}
+                          style={{
+                            backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                            color: isDark ? '#F1F5F9' : '#0F172A',
+                            border: `1px solid ${theme.border}`,
+                            borderRadius: 12,
+                            padding: '10px 12px',
+                            fontSize: 14,
+                            outline: 'none',
+                            width: '100%',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      ) : (
+                        <TextInput
+                          style={[styles.input, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border, color: theme.textPrimary }]}
+                          value={editEndDateStr}
+                          onChangeText={setEditEndDateStr}
+                          placeholder="AAAA-MM-DD"
+                          placeholderTextColor={theme.textMuted}
+                        />
+                      )}
+                    </View>
+                  </>
+                )}
+              </View>
+
               {/* Toggle Dia Inteiro */}
               <View style={styles.switchRow}>
                 <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>
@@ -1072,7 +1470,7 @@ export default function CalendarScreen() {
                   <View
                     style={[
                       styles.toggleKnob,
-                      editIsAllDay && { alignSelf: "flex-end", backgroundColor: "#FFFFFF" },
+                      editIsAllDay && { alignSelf: 'flex-end', backgroundColor: '#FFFFFF' },
                     ]}
                   />
                 </TouchableOpacity>
@@ -1122,8 +1520,41 @@ export default function CalendarScreen() {
                 </View>
               )}
 
+              {/* GOOGLE MEET LINK */}
+              <View style={{ marginTop: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary, marginBottom: 0 }]}>
+                    🎥 Link do Google Meet / Reunião
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setEditMeetLink('https://meet.google.com/new')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 11, color: theme.primary, fontWeight: '700' }}>
+                      + Gerar Link
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.surfaceSubtle,
+                      borderColor: theme.border,
+                      color: theme.textPrimary,
+                    },
+                  ]}
+                  placeholder="https://meet.google.com/xyz-abcd-efg"
+                  placeholderTextColor={theme.textMuted}
+                  value={editMeetLink}
+                  onChangeText={setEditMeetLink}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+
               <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
-                Local / Link
+                Local Físico (Opcional)
               </Text>
               <TextInput
                 style={[
@@ -1597,6 +2028,35 @@ const styles = StyleSheet.create({
   connectBtnText: {
     color: '#FFFFFF',
     fontSize: 12,
+    fontWeight: '700',
+  },
+  meetCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  meetCallBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  meetCallBtnSub: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  multiDayBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  multiDayBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
   },
 });

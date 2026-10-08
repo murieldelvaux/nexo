@@ -32,11 +32,7 @@ export function useAuth() {
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.auth.me, data.user);
       queryClient.invalidateQueries();
-      if (!data.user.householdId) {
-        router.replace('/(household)/join');
-      } else {
-        router.replace('/(tabs)');
-      }
+      router.replace('/(tabs)');
     },
   });
 
@@ -45,7 +41,7 @@ export function useAuth() {
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.auth.me, data.user);
       queryClient.invalidateQueries();
-      router.replace('/(household)/join');
+      router.replace('/(tabs)');
     },
   });
 
@@ -54,11 +50,7 @@ export function useAuth() {
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.auth.me, data.user);
       queryClient.invalidateQueries();
-      if (!data.user.householdId) {
-        router.replace('/(household)/join');
-      } else {
-        router.replace('/(tabs)');
-      }
+      router.replace('/(tabs)');
     },
   });
 

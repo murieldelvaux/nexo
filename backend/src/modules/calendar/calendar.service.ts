@@ -255,6 +255,18 @@ export class CalendarService {
           ? new Date(item.end.date + 'T23:59:59Z')
           : null;
 
+        const meetLink =
+          item.hangoutLink ||
+          item.conferenceData?.entryPoints?.find((ep: any) => ep.entryPointType === 'video')?.uri ||
+          null;
+
+        let location = item.location || null;
+        if (meetLink && !location) {
+          location = meetLink;
+        } else if (meetLink && location && !location.includes(meetLink)) {
+          location = `${location} | ${meetLink}`;
+        }
+
         const existing = await this.prisma.calendarEvent.findFirst({
           where: { googleEventId: item.id },
         });
@@ -264,7 +276,7 @@ export class CalendarService {
             data: {
               title: item.summary,
               description: item.description || null,
-              location: item.location || null,
+              location,
               startDate,
               endDate,
               isAllDay,
@@ -282,7 +294,7 @@ export class CalendarService {
             data: {
               title: item.summary,
               description: item.description || null,
-              location: item.location || null,
+              location,
               startDate,
               endDate,
               isAllDay,

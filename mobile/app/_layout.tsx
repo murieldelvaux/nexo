@@ -43,12 +43,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // Redireciona para login se não autenticado
       router.replace('/(auth)/login');
     } else if (isAuthenticated && inAuthGroup) {
-      // Redireciona para o app se já autenticado
-      if (!userQuery.data?.householdId) {
-        router.replace('/(household)/join');
-      } else {
-        router.replace('/(tabs)');
-      }
+      // Redireciona direto para as abas principais se já autenticado
+      router.replace('/(tabs)');
     }
   }, [userQuery.isLoading, userQuery.data, segments]);
 
