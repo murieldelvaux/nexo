@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev:backend": "npm run --workspace=backend start:dev",
-    "dev:mobile": "npm run --workspace=mobile start",
+    "dev:mobile": "npm run --workspace=mobile start -- --go",
     "dev:mobile:tunnel": "npm run --workspace=mobile start -- --tunnel",
     "build:shared": "npm run --workspace=packages/shared build",
     "db:migrate": "npm run --workspace=backend prisma:migrate",
@@ -19,7 +19,8 @@
     "login": "npm --workspace=mobile exec -- expo login",
     "build:backend": "npm run build:shared && npm run --workspace=backend prisma:generate && npm run --workspace=backend build",
     "start:backend": "npm run --workspace=backend prisma:deploy && npm run --workspace=backend start:prod",
-    "dev:web": "npm run --workspace=mobile start -- --web"
+    "dev:web": "npm run --workspace=mobile start -- --web",
+    "build:web": "npm run build:shared && npm run --workspace=mobile build:web"
   },
   "keywords": [
     "nexo",

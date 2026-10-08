@@ -25,13 +25,19 @@
       "expo-secure-store"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": false
     },
     "extra": {
       "router": {},
       "eas": {
         "projectId": "fdc22022-76cf-423b-859c-08d204b72ab5"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/fdc22022-76cf-423b-859c-08d204b72ab5"
     }
   }
 }
