@@ -13,7 +13,7 @@ services:
     runtime: node
     plan: free
     region: ohio
-    buildCommand: npm install --include=dev && npm run build:backend
+    buildCommand: npm install --include=dev --legacy-peer-deps && npm run build:backend
     startCommand: npm run start:backend
     envVars:
       - key: NODE_ENV
