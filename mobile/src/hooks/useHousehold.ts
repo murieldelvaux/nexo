@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../services/api';
 import { queryKeys } from '../services/queryKeys';
+import { useAuth } from './useAuth';
 import {
   HouseholdDetailDto,
   CreateHouseholdDto,
@@ -11,6 +12,7 @@ import {
 export function useHousehold() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { user } = useAuth();
 
   const householdQuery = useQuery({
     queryKey: queryKeys.household.current,
@@ -18,6 +20,8 @@ export function useHousehold() {
       const { data } = await apiClient.get<HouseholdDetailDto | null>('/household/current');
       return data;
     },
+    enabled: !!user?.householdId,
+    retry: false,
   });
 
   const createHouseholdMutation = useMutation({

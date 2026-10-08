@@ -62,6 +62,8 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function MainNavigation() {
   const { theme, isDark } = useTheme();
+  const segments = useSegments();
+  const inAuthGroup = segments[0] === '(auth)';
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -77,8 +79,8 @@ function MainNavigation() {
         <Stack.Screen name="(household)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       </Stack>
-      {/* Menu Lateral Global (Drawer) */}
-      <AppDrawer />
+      {/* Menu Lateral Global (Drawer) - apenas fora do login */}
+      {!inAuthGroup && <AppDrawer />}
     </View>
   );
 }
