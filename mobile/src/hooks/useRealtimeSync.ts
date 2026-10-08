@@ -41,16 +41,18 @@ export function useRealtimeSync(enabled: boolean = true) {
 
             // Invalidação imediata (0ms) no TanStack Query
             if (data.type === 'EXPENSE_CREATED' || data.type === 'REFETCH') {
-              queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all });
-              queryClient.invalidateQueries({ queryKey: queryKeys.household.current });
-              queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+              queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all, refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: queryKeys.household.current, refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: queryKeys.goals.all, refetchType: 'all' });
             } else if (data.type === 'GOAL_UPDATED') {
-              queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
-              queryClient.invalidateQueries({ queryKey: queryKeys.household.current });
+              queryClient.invalidateQueries({ queryKey: queryKeys.goals.all, refetchType: 'all' });
+              queryClient.invalidateQueries({ queryKey: queryKeys.household.current, refetchType: 'all' });
             } else if (data.type === 'TASK_UPDATED') {
-              queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all });
+              queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all, refetchType: 'all' });
             } else if (data.type === 'SHOPPING_UPDATED') {
-              queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.all });
+              queryClient.invalidateQueries({ queryKey: queryKeys.shoppingList.all, refetchType: 'all' });
+            } else if (data.type === 'CALENDAR_UPDATED' || data.type === 'EVENT_CREATED') {
+              queryClient.invalidateQueries({ queryKey: queryKeys.calendar.all, refetchType: 'all' });
             }
           } catch {
             // Ignora erro de parse em pacotes não-json
@@ -59,9 +61,9 @@ export function useRealtimeSync(enabled: boolean = true) {
 
         es.onerror = () => {
           es.close();
-          // Reconectar após 3 segundos
+          // Reconectar rapidamente após 1.5 segundos
           if (isMounted) {
-            reconnectTimeout = setTimeout(connectSSE, 3000);
+            reconnectTimeout = setTimeout(connectSSE, 1500);
           }
         };
       } catch {

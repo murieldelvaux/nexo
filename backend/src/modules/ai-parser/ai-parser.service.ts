@@ -89,24 +89,52 @@ export class AiParserService {
     };
   }
 
-  async parseMessage(messageText: string, now: Date = new Date()): Promise<ParsedWhatsAppResultDto> {
-    const referenceIso = now.toISOString();
+  private async generateWithModelFallback(
+    promptContent: string | Array<any>,
+    now: Date = new Date(),
+  ): Promise<ParsedWhatsAppResultDto | null> {
+    if (!this.genAI) return null;
 
-    // 1. Tentar via Gemini API com Structured Outputs
-    if (this.genAI) {
+    // Modelos com suporte multimodal de áudio e texto, com fallback transparente
+    const modelsToTry = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+
+    for (const modelName of modelsToTry) {
       try {
         const model = this.genAI.getGenerativeModel({
-          model: "gemini-3.5-flash-lite",
+          model: modelName,
           generationConfig: {
             responseMimeType: "application/json",
             responseSchema: this.getParserSchema(),
+            temperature: 0.1,
           },
         });
 
-        const prompt = `Você é o interpretador oficial inteligente do assistente Nexo (gestão financeira e rotina pessoal/casal).
+        const result = await model.generateContent(promptContent as any);
+        const text = result.response.text();
+        if (text) {
+          const parsed = JSON.parse(text) as ParsedWhatsAppResultDto;
+          this.logger.log(`Parsed successfully via ${modelName}: ${JSON.stringify(parsed)}`);
+          return parsed;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Model ${modelName} failed or busy (${err?.message || err}). Trying fallback...`);
+        // Pausa curta de 200ms para absorver picos de demanda
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }
+    return null;
+  }
+
+  async parseMessage(messageText: string, now: Date = new Date()): Promise<ParsedWhatsAppResultDto> {
+    const referenceIso = now.toISOString();
+
+    // 1. Tentar via Gemini API com Structured Outputs e Fallback de Modelos
+    if (this.genAI) {
+      const prompt = `Você é o assistente inteligente oficial do Nexo (gestão financeira, agenda e rotina pessoal/casal).
 Data e hora atual de referência: ${referenceIso} (fuso horário de Brasília UTC-3).
 
-Analise a mensagem em português e extraia as informações estruturadas seguindo com rigor estas regras:
+Analise a mensagem em português e extraia as informações estruturadas.
+ATENÇÃO: Tenha total tolerância com linguagem falada informal, digitação rápida e erros de transcrição de áudio cotidianos (por exemplo: "gatei" = "gastei", "comprei", "paguei", "deu 15 reais", "fiz as unhas deu 15", etc.):
 
 REGRA DE OURO SOBRE ESCOPO (PRIVADO vs COMPARTILHADO):
 - O escopo OBRIGATÓRIO por padrão é "PRIVATE".
@@ -114,60 +142,56 @@ REGRA DE OURO SOBRE ESCOPO (PRIVADO vs COMPARTILHADO):
 - Se nada for dito sobre ser compartilhado, NUNCA presuma que é compartilhado: marque SEMPRE "PRIVATE".
 
 0. CONSULTAS E VISUALIZAÇÃO (QUERY_CALENDAR, QUERY_TASKS, QUERY_SHOPPING_LIST):
-- Se o usuário pedir para ver, falar ou mostrar sua agenda / compromissos de hoje ou próximos (ex: "Me fale minha agenda para hoje", "minha agenda", "o que tenho na agenda hoje?", "quais meus compromissos de hoje?"):
-  Classifique OBRIGATORIAMENTE como QUERY_CALENDAR.
-- Se o usuário pedir para ver, falar ou mostrar seus lembretes ou tarefas pendentes (ex: "me fale meus lembretes", "quais meus lembretes", "minhas tarefas", "o que tenho para fazer?"):
-  Classifique OBRIGATORIAMENTE como QUERY_TASKS.
-- Se o usuário pedir para ver, falar ou mostrar sua lista de compras (ex: "me mostre minha lista de compras", "minha lista de compras", "o que tem para comprar?", "o que preciso comprar no mercado?"):
-  Classifique OBRIGATORIAMENTE como QUERY_SHOPPING_LIST.
+- Se o usuário pedir para ver ou consultar agenda/compromissos (ex: "minha agenda", "o que tenho hoje?"): QUERY_CALENDAR.
+- Se pedir para ver lembretes/tarefas (ex: "meus lembretes", "o que tenho para fazer?"): QUERY_TASKS.
+- Se pedir para ver lista de compras (ex: "minha lista de compras", "o que tem pra comprar?"): QUERY_SHOPPING_LIST.
 
-1. COMPROMISSOS, REUNIÕES E EVENTOS DE AGENDA (CREATE_EVENT):
-- Se indicar o agendamento de um compromisso de calendário, evento, reunião, consulta médica, voo, aniversário ou festa (ex: "colocar evento na minha agenda: 7 de outubro de 2026 às 17h - evento teste whatsapp", "agendar 7 de outubro de 2026 às 17h - evento teste whatsapp", "Agendar reunião amanhã às 15h", "Dentista quinta 14:00", "Adicionar evento Aniversário do João dia 20/11", "Compromisso médico sexta"):
-  Classifique como CREATE_EVENT.
-- "title": título do compromisso limpo (ex: "evento teste whatsapp", "Reunião de Alinhamento", "Dentista", "Aniversário do João"). Remova prefixos como "colocar evento na minha agenda:", "agendar", datas e horários.
-- "startDate": data e hora ISO com offset de Brasília UTC-3 (exemplo: para 17h retorne exatamente "2026-10-07T17:00:00-03:00", NUNCA use "Z").
-- "endDate": data e hora de término ISO (se não informado, assuma 1 hora após startDate).
-- "isAllDay": true se for dia inteiro sem hora específica, false se tiver hora.
-- "location": local se mencionado (ex: "Consultório Dr. Paulo", "Google Meet").
-- "scope": PRIVATE por padrão. Somente SHARED se disser expressamente compartilhado, nossa agenda, do casal ou juntos.
-
-2. LISTA DE COMPRAS (CREATE_SHOPPING_ITEM):
-- Se a mensagem indicar itens a comprar ou adicionar na lista (ex: "comprar leite, queijo e ovos", "colocar pão na lista de compras", "adicionar na lista de mercado café e açúcar"):
-  Classifique OBRIGATORIAMENTE como CREATE_SHOPPING_ITEM.
-- "items": extraia cada item em um elemento do array com "name" capitalizado e "quantity" ("1" se não especificado).
-
-3. METAS (CREATE_GOAL):
-- SE a mensagem contiver "meta", "na meta", "nova meta", "objetivo", "guardar", "poupar", "juntar dinheiro" (ex: "Adicionar viagem para Itália na meta com gasto de 10.000", "Meta reforma 5000", "Guardar 2000 na meta carro"):
-  Classifique OBRIGATORIAMENTE como CREATE_GOAL, mesmo que use palavras como "gasto", "comprar" ou "pagar".
-- "amount": extraia o valor alvo numérico (ex: 10000).
-- "title": limpe o título deixando apenas o nome da meta (ex: "Viagem para Itália").
-- "scope": PRIVATE por padrão. Somente SHARED se disser expressamente compartilhado/nossa meta/juntos.
-
-4. LEMBRETES E TAREFAS (CREATE_TASK):
-- Se indicar um lembrete, aviso ou prazo pontual (ex: "Pagar conta de luz daqui 10 minutos", "Lembrar de comprar pão", "Me lembre de ligar para o cliente"):
-  Classifique como CREATE_TASK.
-- "title": o texto do lembrete limpo sem "lembrar de", "me lembre" (ex: "Pagar conta de luz", "Comprar pão").
-- "dueDate": calcule a data e hora ISO exata calculada a partir da data de referência (${referenceIso}).
-- "hasSpecificTime": true se o usuário informou um horário ou minutos/horas específicas. false se não informou.
+1. COMPROMISSOS E EVENTOS DE AGENDA (CREATE_EVENT):
+- Se indicar agendamento de compromisso, consulta, dentista, médico, reunião, aniversário ou evento (ex: "Agendar dentista amanhã as 13:10", "Dentista amanhã às 13:10", "Marcar médico amanhã às 14h", "Adicionar dentista amanhã na minha agenda as 13:30", "Reunião sexta às 10h"):
+  Classifique OBRIGATORIAMENTE como CREATE_EVENT!
+  NÃO exija palavras como "na minha agenda" ou "novo evento". "Agendar dentista amanhã as 13:10" É um CREATE_EVENT!
+- "title": título do compromisso limpo (ex: "Dentista", "Consulta médica", "Reunião"). Remova "agendar", "marcar", horários e datas.
+- "startDate": data e hora ISO exata calculada a partir de ${referenceIso} com offset de Brasília (-03:00). Exemplo: para amanhã às 13:10 retorne a data de amanhã com horário 13:10:00-03:00 (NUNCA retorne com Z se alterar o horário).
+- "endDate": data e hora de término ISO (se não informado, 1 hora após startDate).
+- "isAllDay": false se tiver horário, true se dia inteiro.
+- "location": local se mencionado.
 - "scope": PRIVATE por padrão.
 
-5. GASTOS E DESPESAS (CREATE_EXPENSE):
-- Gastos imediatos já realizados (ex: "Gastei 45 no mercado compartilhado", "Almoço 32", "Farmácia 25").
-- "scope": PRIVATE por padrão. Somente SHARED se disser explicitamente compartilhado, da casa ou juntos.
+2. GASTOS E DESPESAS (CREATE_EXPENSE):
+- Qualquer gasto ou pagamento realizado (ex: "Gatei 15 reais na manicure", "gastei 15 na manicure", "deu 15 na manicure", "paguei 30 no almoço", "Uber 25", "Farmácia 40"):
+  Classifique OBRIGATORIAMENTE como CREATE_EXPENSE!
+  Tolerância fonética e coloquial: "gatei", "gastei", "comprei", "paguei", "deu", "custou".
+- "amount": valor numérico gasto (ex: 15).
+- "title": descrição limpa do gasto (ex: "Manicure", "Almoço", "Uber").
+- "category": categoria mais adequada (HEALTH para manicure/estética/remédio/médico, RESTAURANT para almoço/jantar, TRANSPORTATION para uber/gasolina, FOOD_MARKET para mercado, etc.).
+- "scope": PRIVATE por padrão.
 - NUNCA classifique como CREATE_EXPENSE se houver a palavra "meta", "poupar" ou "guardar".
+
+3. LISTA DE COMPRAS (CREATE_SHOPPING_ITEM):
+- Se a mensagem indicar itens a comprar ou adicionar na lista (ex: "comprar leite, queijo e ovos", "colocar pão na lista"):
+  Classifique como CREATE_SHOPPING_ITEM.
+- "items": array de itens extraídos com "name" e "quantity".
+
+4. METAS (CREATE_GOAL):
+- SE contiver "meta", "objetivo", "guardar", "poupar", "juntar dinheiro" (ex: "Guardar 2000 na meta carro", "Meta viagem 5000"):
+  Classifique como CREATE_GOAL.
+- "amount": valor numérico alvo.
+- "title": nome limpo da meta.
+
+5. LEMBRETES E TAREFAS (CREATE_TASK):
+- Se indicar lembrete pontual (ex: "Lembrar de pagar conta de luz", "Me lembre de ligar para o cliente daqui 30 min"):
+  Classifique como CREATE_TASK.
+- "title": descrição limpa.
+- "dueDate": data e hora calculada a partir de ${referenceIso}.
+- "hasSpecificTime": true se especificou horário/minutos, false caso contrário.
 
 Mensagem: "${messageText}"`;
 
-        const result = await model.generateContent(prompt);
-        const parsed = JSON.parse(result.response.text()) as ParsedWhatsAppResultDto;
-        this.logger.log(`Parsed message via LLM: ${JSON.stringify(parsed)}`);
-        return parsed;
-      } catch (err) {
-        this.logger.warn(`LLM parsing failed or timed out. Falling back to heuristic parser: ${err}`);
-      }
+      const parsed = await this.generateWithModelFallback(prompt, now);
+      if (parsed) return parsed;
     }
 
-    // 2. Fallback Heurístico Robusto
+    // 2. Fallback Heurístico Robusto (em caso de offline ou falha de rede)
     return this.heuristicFallback(messageText, now);
   }
 
@@ -204,20 +228,15 @@ Mensagem: "${messageText}"`;
     }
 
     if (this.genAI) {
-      try {
-        const model = this.genAI.getGenerativeModel({
-          model: "gemini-3.5-flash-lite",
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: this.getParserSchema(),
-          },
-        });
-
-        const prompt = `Você é o assistente inteligente multimodal do Nexo (gestão financeira e rotina pessoal/casal).
+      const prompt = `Você é o assistente inteligente multimodal do Nexo (gestão financeira, agenda e rotina pessoal/casal).
 Data e hora atual de referência: ${referenceIso} (fuso horário de Brasília UTC-3).
 ${caption ? `Legenda da mensagem enviada pelo usuário: "${caption}"` : ""}
 
-Analise com precisão a mídia fornecida (pode ser foto de comprovante/recibo/cupom fiscal/nota fiscal/produto/meta ou áudio de voz em português) e extraia os dados estruturados:
+Analise com precisão a mídia fornecida (pode ser foto de comprovante/recibo/cupom fiscal ou áudio de voz em português):
+
+ATENÇÃO CRÍTICA PARA TRANSCRIÇÃO DE ÁUDIO DE VOZ:
+- A voz do usuário em português do Brasil frequentemente tem pronúncias rápidas ou distorções comuns de gravação (ex: fala rápido "gatei" em vez de "gastei", "deu 15 na manicure", "dentista amanhã 13:10", etc.).
+- Interprete sempre a intenção semântica real do usuário com inteligência contextual!
 
 REGRA DE OURO SOBRE ESCOPO:
 - O escopo DEFAULT OBRIGATÓRIO é "PRIVATE".
@@ -225,68 +244,47 @@ REGRA DE OURO SOBRE ESCOPO:
 - Caso contrário, defina SEMPRE "PRIVATE".
 
 DIRETRIZES DE RECONHECIMENTO:
-1. AGENDAMENTO DE EVENTOS / COMPROMISSOS (CREATE_EVENT):
-   - Se o áudio for para agendar compromisso, evento, reunião, consulta médica ou festa (ex: áudio falando "agendar 7 de outubro de 2026 às 17h - evento teste whatsapp", "colocar evento na minha agenda amanhã às 14 horas dentista", "marcar reunião sexta às 10h"):
+1. GASTOS E COMPRAS (CREATE_EXPENSE):
+   - Se for foto de comprovante Pix, recibo de máquina de cartão, cupom fiscal, fatura ou nota fiscal: extraia valor total, nome do estabelecimento e categoria.
+   - Se for áudio onde a pessoa fala sobre um gasto, pagamento ou compra (ex: "Gatei 15 reais na manicure", "gastei 15 na manicure", "deu 15 na manicure", "Gastei 60 no mercado", "Almoço 35", "Farmácia 40"):
+     - intent: "CREATE_EXPENSE"
+     - amount: o valor numérico mencionado (ex: 15).
+     - title: o que foi gasto (ex: "Manicure", "Mercado", "Almoço").
+     - category: a categoria correspondente (HEALTH para manicure/beleza/saúde, RESTAURANT para refeições, FOOD_MARKET para mercado, etc.).
+
+2. COMPROMISSOS E EVENTOS DE AGENDA (CREATE_EVENT):
+   - Se o áudio for para agendar compromisso, consulta, dentista, médico ou reunião (ex: "Agendar dentista amanhã as 13:10", "Dentista amanhã às 13:10", "Marcar consulta amanhã às 14 horas", "Adicionar dentista na minha agenda"):
      - intent: "CREATE_EVENT"
-     - title: título limpo do compromisso (ex: "evento teste whatsapp", "dentista", "reunião").
-     - startDate: data e hora ISO exata calculada a partir de ${referenceIso} (fuso Brasília UTC-3).
-     - endDate: 1 hora após startDate (ou especificado).
+     - title: título limpo do compromisso (ex: "Dentista", "Consulta médica", "Reunião").
+     - startDate: data e hora ISO calculada com offset de Brasília UTC-3 a partir de ${referenceIso}.
+     - endDate: 1 hora após startDate.
      - isAllDay: false se tiver horário, true se dia inteiro.
 
-2. CONSULTAS DE AGENDA, LEMBRETES OU COMPRAS (QUERY_CALENDAR, QUERY_TASKS, QUERY_SHOPPING_LIST):
-   - Se o áudio perguntar pela agenda do dia (ex: "me fale minha agenda para hoje", "o que tenho na agenda hoje?"):
-     - intent: "QUERY_CALENDAR"
-   - Se o áudio perguntar pelos lembretes/tarefas (ex: "me fale meus lembretes", "quais minhas tarefas?"):
-     - intent: "QUERY_TASKS"
-   - Se o áudio perguntar pela lista de compras (ex: "me mostre minha lista de compras", "o que tem pra comprar?"):
-     - intent: "QUERY_SHOPPING_LIST"
+3. CONSULTAS (QUERY_CALENDAR, QUERY_TASKS, QUERY_SHOPPING_LIST):
+   - Se o áudio perguntar pela agenda, tarefas ou lista de compras.
 
-3. LISTA DE COMPRAS (CREATE_SHOPPING_ITEM):
-   - Se o áudio ou imagem/planilha listar itens para comprar (ex: áudio dizendo "comprar leite, queijo e café" ou "colocar pão e manteiga na lista de compras"):
-     - intent: "CREATE_SHOPPING_ITEM"
-     - items: array de itens com name e quantity.
-
-4. COMPROVANTES, RECIBOS E CUPONS FISCAIS OU ÁUDIO DE GASTO (CREATE_EXPENSE):
-   - Se for foto de comprovante Pix, recibo de máquina de cartão, cupom fiscal, fatura ou nota fiscal:
-     - intent: "CREATE_EXPENSE"
-     - amount: extraia o VALOR TOTAL pago como número decimal (ex: 78.90).
-     - title: nome do estabelecimento ou descrição do gasto (ex: "Supermercado Extra", "Posto Ipiranga", "Almoço Restaurante", "Farmácia Droga Raia").
-     - category: deduza a categoria mais adequada entre FOOD_MARKET, RESTAURANT, TRANSPORTATION, HEALTH, UTILITIES, LEISURE, SUBSCRIPTIONS, OTHER.
-   - Se for áudio onde a pessoa fala sobre uma compra/gasto realizado (ex: "Gastei 60 reais no açougue hoje"):
-     - intent: "CREATE_EXPENSE"
-     - amount: o valor mencionado.
-     - title: o que foi comprado/gasto.
-     - category: a categoria correspondente.
+4. LISTA DE COMPRAS (CREATE_SHOPPING_ITEM):
+   - Se o áudio listar itens para comprar (ex: "comprar leite, queijo e ovos").
+   - items: array de itens com name e quantity.
 
 5. METAS FINANCEIRAS E OBJETIVOS (CREATE_GOAL):
-   - Se a mídia for um áudio ou foto com legenda referente a poupar, guardar dinheiro, comprar um bem futuro ou objetivo financeiro (ex: áudio dizendo "Quero criar uma meta de 15 mil reais para reforma da casa" ou foto de viagem com legenda "Meta de 10.000 para Paris"):
-     - intent: "CREATE_GOAL"
-     - amount: o valor monetário alvo da meta.
-     - title: o nome limpo do objetivo (ex: "Reforma da casa", "Viagem para Paris").
+   - Se o áudio for sobre poupar, guardar dinheiro ou meta (ex: "Meta de 5000 para viagem").
 
 6. LEMBRETES E TAREFAS (CREATE_TASK):
-   - Se for áudio pedindo para lembrar de algo (ex: "lembrar de pagar condomínio dia 10", "me lembre de ligar para a mamãe"):
-     - intent: "CREATE_TASK"
-     - title: descrição do compromisso/tarefa.
-     - dueDate: data e hora calculada a partir de ${referenceIso}.
-     - hasSpecificTime: true se informou hora/minuto, false se apenas o dia.`;
+   - Se for áudio pedindo para lembrar de algo (ex: "lembrar de pagar condomínio dia 10").`;
 
-        const result = await model.generateContent([
-          prompt,
-          {
-            inlineData: {
-              data: mediaBuffer.toString("base64"),
-              mimeType: cleanMimeType,
-            },
+      const promptContent = [
+        prompt,
+        {
+          inlineData: {
+            data: mediaBuffer.toString("base64"),
+            mimeType: cleanMimeType,
           },
-        ]);
+        },
+      ];
 
-        const parsed = JSON.parse(result.response.text()) as ParsedWhatsAppResultDto;
-        this.logger.log(`Parsed multimodal media via LLM: ${JSON.stringify(parsed)}`);
-        return parsed;
-      } catch (err) {
-        this.logger.warn(`Multimodal LLM parsing failed: ${err}`);
-      }
+      const parsed = await this.generateWithModelFallback(promptContent, now);
+      if (parsed) return parsed;
     }
 
     if (caption) {
@@ -306,10 +304,12 @@ DIRETRIZES DE RECONHECIMENTO:
   private heuristicFallback(text: string, now: Date): ParsedWhatsAppResultDto {
     const lower = text.toLowerCase();
 
-    // Detecção de valores monetários (ex: 10.000, 10000, 45, 45.90, R$ 45,00, 150 reais)
+    // Detecção de valores monetários (ex: 10.000, 10000, 45, 45.90, R$ 45,00, 150 reais, 15 reais)
     const sanitizedAmountText = text.replace(/(\d+)\.(\d{3})/g, "$1$2");
-    const amountMatch = sanitizedAmountText.match(/(?:r\$|reais)?\s*(\d+(?:[.,]\d{1,2})?)/i);
-    const amount = amountMatch ? parseFloat(amountMatch[1].replace(",", ".")) : undefined;
+    const amountMatch =
+      sanitizedAmountText.match(/(\d+(?:[.,]\d{1,2})?)\s*(?:reais|r\$)/i) ||
+      sanitizedAmountText.match(/(?:r\$|reais)?\s*(\d+(?:[.,]\d{1,2})?)/i);
+    const amount = amountMatch ? parseFloat((amountMatch[1] || amountMatch[0]).replace(",", ".")) : undefined;
 
     // Detecção de escopo estritamente por palavras explícitas
     const isShared =
@@ -471,13 +471,16 @@ DIRETRIZES DE RECONHECIMENTO:
     const isEventIntent =
       lower.includes("agendar") ||
       lower.includes("marcar") ||
+      lower.includes("dentista") ||
+      lower.includes("médico") ||
+      lower.includes("medico") ||
+      lower.includes("consulta") ||
       lower.includes("colocar evento") ||
       lower.includes("criar evento") ||
       lower.includes("adicionar evento") ||
       lower.includes("novo evento") ||
       lower.includes("reunião") ||
       lower.includes("reuniao") ||
-      lower.includes("consulta") ||
       lower.includes("aniversário") ||
       lower.includes("aniversario") ||
       ((lower.includes("agenda") || lower.includes("evento")) &&
@@ -564,7 +567,7 @@ DIRETRIZES DE RECONHECIMENTO:
         }
       }
 
-      // Horário: "às 17h", "às 17:30", "às 17h30", "17h", "17:30"
+      // Horário: "às 17h", "às 17:30", "às 17h30", "17h", "17:30", "as 13:10"
       const timeMatch = lower.match(/(?:(?:às|as)\s+)?(\d{1,2})(?:h|:)(\d{2})?|(?:às|as)\s+(\d{1,2})h?/i);
       if (timeMatch) {
         if (timeMatch[1]) {
@@ -590,12 +593,13 @@ DIRETRIZES DE RECONHECIMENTO:
         cleanTitle = text.split(" : ").slice(1).join(" : ").trim();
       } else {
         cleanTitle = cleanTitle
-          .replace(/^(?:colocar\s+evento\s+(?:na\s+minha\s+agenda)?|agendar\s+evento|agendar|marcar\s+evento|marcar|adicionar\s+evento|criar\s+evento|novo\s+evento)\s*:?\s*/gi, "")
+          .replace(/^(?:colocar\s+evento\s+(?:na\s+minha\s+agenda)?|agendar\s+evento|agendar|marcar\s+evento|marcar|adicionar\s+(?:evento\s+)?(?:na\s+minha\s+agenda)?|criar\s+evento|novo\s+evento)\s*:?\s*/gi, "")
           .replace(/\b\d{1,2}\s+de\s+[a-zç]+(?:\s+de\s+\d{4})?/gi, "")
           .replace(/\b(?:dia\s+)?\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/gi, "")
           .replace(/\bdia\s+\d{1,2}\b/gi, "")
           .replace(/(?:(?:às|as)\s+)?\d{1,2}(?:h|:\d{2})\b/gi, "")
           .replace(/(?:^|\s+)(?:hoje|amanhã|amanha)(?:\s+|$)/gi, " ")
+          .replace(/(?:^|\s+)(?:na\s+minha\s+agenda)(?:\s+|$)/gi, " ")
           .replace(/^[-–—:\s]+|[-–—:\s]+$/g, "")
           .trim();
       }
@@ -682,20 +686,21 @@ DIRETRIZES DE RECONHECIMENTO:
     // 3. Detecção de Gasto
     if (amount !== undefined) {
       let category = ExpenseCategory.OTHER;
-      if (lower.includes("mercado") || lower.includes("compras") || lower.includes("feira")) {
+      if (lower.includes("mercado") || lower.includes("compras") || lower.includes("feira") || lower.includes("supermercado")) {
         category = ExpenseCategory.FOOD_MARKET;
-      } else if (lower.includes("almoc") || lower.includes("jantar") || lower.includes("restaurante") || lower.includes("ifood") || lower.includes("lanche")) {
+      } else if (lower.includes("almoc") || lower.includes("jantar") || lower.includes("restaurante") || lower.includes("ifood") || lower.includes("lanche") || lower.includes("pizza") || lower.includes("cafe")) {
         category = ExpenseCategory.RESTAURANT;
-      } else if (lower.includes("uber") || lower.includes("gasolina") || lower.includes("metro") || lower.includes("transporte")) {
+      } else if (lower.includes("uber") || lower.includes("gasolina") || lower.includes("metro") || lower.includes("transporte") || lower.includes("onibus") || lower.includes("posto")) {
         category = ExpenseCategory.TRANSPORTATION;
-      } else if (lower.includes("farmacia") || lower.includes("medico") || lower.includes("remedio")) {
+      } else if (lower.includes("farmacia") || lower.includes("medico") || lower.includes("remedio") || lower.includes("manicure") || lower.includes("salao") || lower.includes("unha") || lower.includes("cabelo") || lower.includes("barba") || lower.includes("estetica")) {
         category = ExpenseCategory.HEALTH;
-      } else if (lower.includes("luz") || lower.includes("agua") || lower.includes("internet") || lower.includes("energia")) {
+      } else if (lower.includes("luz") || lower.includes("agua") || lower.includes("internet") || lower.includes("energia") || lower.includes("aluguel") || lower.includes("condominio")) {
         category = ExpenseCategory.UTILITIES;
       }
 
       let title = text
-        .replace(/(?:gastei|paguei|comprei|valor|r\$|\d+(?:[.,]\d{1,2})?|reais|compartilhad[ao]|privad[ao])/gi, "")
+        .replace(/(?:gastei|gatei|paguei|comprei|valor|r\$|\d+(?:[.,]\d{1,2})?|reais|compartilhad[ao]|privad[ao]|(?:na|no|em|pra|para)\s+)/gi, " ")
+        .replace(/\s+/g, " ")
         .trim();
       if (!title) title = "Gasto via WhatsApp";
 

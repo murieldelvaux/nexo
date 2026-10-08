@@ -464,6 +464,13 @@ export class WhatsappService {
           },
         });
 
+        this.realtimeService.emit({
+          type: 'CALENDAR_UPDATED',
+          userId: user.id,
+          householdId: user.householdId,
+          data: calendarEvent,
+        });
+
         const formattedDate = startDate.toLocaleDateString("pt-BR", {
           timeZone: "America/Sao_Paulo",
           weekday: "short",

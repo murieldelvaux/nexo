@@ -3,7 +3,15 @@ import { Subject, Observable } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 
 export interface RealtimeEvent {
-  type: 'EXPENSE_CREATED' | 'EXPENSE_UPDATED' | 'TASK_UPDATED' | 'GOAL_UPDATED' | 'SHOPPING_UPDATED' | 'REFETCH';
+  type:
+    | 'EXPENSE_CREATED'
+    | 'EXPENSE_UPDATED'
+    | 'TASK_UPDATED'
+    | 'GOAL_UPDATED'
+    | 'SHOPPING_UPDATED'
+    | 'CALENDAR_UPDATED'
+    | 'EVENT_CREATED'
+    | 'REFETCH';
   householdId?: string | null;
   userId?: string | null;
   data?: any;
