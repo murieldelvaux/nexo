@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { PrismaService } from '../../database/prisma.service';
 import { AiParserService } from '../ai-parser/ai-parser.service';
+import { RealtimeService } from '../../common/realtime/realtime.service';
 import { AIIntent, RecordScope, ExpenseCategory, ParsedWhatsAppResultDto } from '../../../../packages/shared/src';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class WhatsappService {
     private prisma: PrismaService,
     private aiParser: AiParserService,
     private configService: ConfigService,
+    private realtimeService: RealtimeService,
   ) {}
 
   async processEvent(payload: any) {
@@ -139,6 +141,13 @@ export class WhatsappService {
           },
         });
 
+        this.realtimeService.emit({
+          type: 'EXPENSE_CREATED',
+          userId: user.id,
+          householdId: user.householdId,
+          data: expense,
+        });
+
         const formattedAmount = Number(expense.amount).toFixed(2).replace('.', ',');
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
 
@@ -154,6 +163,13 @@ export class WhatsappService {
             userId: user.id,
             householdId: isShared ? user.householdId : null,
           },
+        });
+
+        this.realtimeService.emit({
+          type: 'GOAL_UPDATED',
+          userId: user.id,
+          householdId: user.householdId,
+          data: goal,
         });
 
         const formattedAmount = Number(goal.targetAmount).toLocaleString('pt-BR', {
@@ -207,6 +223,12 @@ export class WhatsappService {
           createdNames.push(`• ${it.name}${it.quantity && it.quantity !== "1" ? ` (${it.quantity})` : ""}`);
         }
 
+        this.realtimeService.emit({
+          type: 'SHOPPING_UPDATED',
+          userId: user.id,
+          householdId: user.householdId,
+        });
+
         const sourceNotice = mediaSourceLabel ? ` (${mediaSourceLabel})` : '';
         const itemsText = createdNames.slice(0, 15).join('\n') + (createdNames.length > 15 ? `\n...e mais ${createdNames.length - 15} itens` : '');
 
@@ -227,6 +249,13 @@ export class WhatsappService {
             userId: user.id,
             householdId: isShared ? user.householdId : null,
           },
+        });
+
+        this.realtimeService.emit({
+          type: 'TASK_UPDATED',
+          userId: user.id,
+          householdId: user.householdId,
+          data: task,
         });
 
         let timeNotice = '';

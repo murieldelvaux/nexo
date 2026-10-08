@@ -13,6 +13,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { AiParserModule } from './modules/ai-parser/ai-parser.module';
 import { ShoppingListModule } from './modules/shopping-list/shopping-list.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
+import { RealtimeModule } from './common/realtime/realtime.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
@@ -23,6 +24,7 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
       envFilePath: ['.env', '../.env', '../../.env'],
     }),
     DatabaseModule,
+    RealtimeModule,
     MailModule,
     AuthModule,
     HouseholdModule,

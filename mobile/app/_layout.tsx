@@ -10,6 +10,7 @@ import { queryKeys } from '../src/services/queryKeys';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext';
 import { DrawerProvider } from '../src/context/DrawerContext';
 import { AppDrawer } from '../src/components/AppDrawer';
+import { useRealtimeSync } from '../src/hooks/useRealtimeSync';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -28,6 +29,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     staleTime: 1000 * 60 * 5,
     retry: false,
   });
+
+  // Ativa sincronização instantânea em tempo real via Server-Sent Events (SSE)
+  useRealtimeSync(!!userQuery.data);
 
   useEffect(() => {
     if (userQuery.isLoading) return;
