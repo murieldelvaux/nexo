@@ -6,10 +6,13 @@ import { Platform } from 'react-native';
 const TOKEN_KEY = 'nexo_auth_token';
 
 // Usa variável de ambiente do Expo ou fallback local
-const BASE_URL =
+const rawUrl =
   process.env.EXPO_PUBLIC_API_URL ||
   Constants.expoConfig?.extra?.apiUrl ||
   'http://localhost:3000/api/v1';
+
+const cleanUrl = rawUrl.replace(/\/+$/, '');
+const BASE_URL = cleanUrl.endsWith('/api/v1') ? cleanUrl : `${cleanUrl}/api/v1`;
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

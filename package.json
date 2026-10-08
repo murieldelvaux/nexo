@@ -11,6 +11,7 @@
   "scripts": {
     "dev:backend": "npm run --workspace=backend start:dev",
     "dev:mobile": "npm run --workspace=mobile start",
+    "dev:mobile:tunnel": "npm run --workspace=mobile start -- --tunnel",
     "build:shared": "npm run --workspace=packages/shared build",
     "db:migrate": "npm run --workspace=backend prisma:migrate",
     "db:studio": "npm run --workspace=backend prisma:studio",
@@ -37,6 +38,7 @@
     "query-string": "7.1.3"
   },
   "devDependencies": {
-    "@types/react": "~19.2.4"
+    "@types/react": "~19.2.4",
+    "expo-router": "~57.0.24"
   }
 }
