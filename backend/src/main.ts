@@ -13,7 +13,9 @@ async function bootstrap() {
     rawBody: true, // Necessário para validação HMAC do webhook WhatsApp
   });
 
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1', {
+    exclude: ['/'],
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

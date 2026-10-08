@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
+import { AppController } from './app.controller';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { MailModule } from './modules/mail/mail.module';
@@ -33,6 +34,7 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
     ShoppingListModule,
     CalendarModule,
   ],
+  controllers: [AppController],
   providers: [
     {
       provide: APP_GUARD,
