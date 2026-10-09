@@ -82,6 +82,8 @@ export default function CalendarScreen() {
   const [newStartTime, setNewStartTime] = useState('09:00');
   const [newEndTime, setNewEndTime] = useState('10:00');
   const [newScope, setNewScope] = useState<RecordScope>(RecordScope.SHARED);
+  const [newAttendees, setNewAttendees] = useState('');
+  const [newCreateMeetLink, setNewCreateMeetLink] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
   // Modal Editar Evento
@@ -98,6 +100,8 @@ export default function CalendarScreen() {
   const [editStartTime, setEditStartTime] = useState('09:00');
   const [editEndTime, setEditEndTime] = useState('10:00');
   const [editScope, setEditScope] = useState<RecordScope>(RecordScope.SHARED);
+  const [editAttendees, setEditAttendees] = useState('');
+  const [editCreateMeetLink, setEditCreateMeetLink] = useState(false);
 
 
   // Navegação de mês
@@ -294,6 +298,8 @@ export default function CalendarScreen() {
     setNewIsMultiDay(false);
     setNewLocation('');
     setNewMeetLink('');
+    setNewAttendees('');
+    setNewCreateMeetLink(false);
     setNewDescription('');
     setNewIsAllDay(false);
     setNewStartTime('09:00');
@@ -346,12 +352,16 @@ export default function CalendarScreen() {
         endDate: endDateIso,
         isAllDay: newIsAllDay,
         scope: newScope,
+        attendees: newAttendees.trim() || undefined,
+        createMeetLink: newCreateMeetLink,
       });
 
       setModalVisible(false);
       setNewTitle('');
       setNewLocation('');
       setNewMeetLink('');
+      setNewAttendees('');
+      setNewCreateMeetLink(false);
       setNewDescription('');
       setNewIsAllDay(false);
     } catch (err: any) {
@@ -383,6 +393,22 @@ export default function CalendarScreen() {
       cleanLoc = cleanLoc.replace(detectedMeet, '').replace(/\|\s*$/, '').trim();
     }
     setEditLocation(cleanLoc);
+
+    if (event.attendees) {
+      try {
+        const parsed = JSON.parse(event.attendees);
+        if (Array.isArray(parsed)) {
+          setEditAttendees(parsed.map((a: any) => (typeof a === 'string' ? a : a.email || a.displayName)).join(', '));
+        } else {
+          setEditAttendees(event.attendees);
+        }
+      } catch {
+        setEditAttendees(event.attendees);
+      }
+    } else {
+      setEditAttendees('');
+    }
+    setEditCreateMeetLink(false);
 
     const startH = String(s.getHours()).padStart(2, '0') + ':' + String(s.getMinutes()).padStart(2, '0');
     setEditStartTime(startH);
@@ -442,6 +468,8 @@ export default function CalendarScreen() {
           endDate: endDateIso,
           isAllDay: editIsAllDay,
           scope: editScope,
+          attendees: editAttendees.trim() || undefined,
+          createMeetLink: editCreateMeetLink,
         },
       });
 
@@ -482,15 +510,6 @@ export default function CalendarScreen() {
       <AppHeader
         title="Agenda & Calendário"
         subtitle="Eventos e Google Agenda"
-        rightAction={
-          <TouchableOpacity
-            style={[styles.newEventHeaderBtn, { backgroundColor: theme.primary }]}
-            onPress={handleOpenNewEvent}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.newEventHeaderBtnText}>+ Evento</Text>
-          </TouchableOpacity>
-        }
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -678,8 +697,8 @@ export default function CalendarScreen() {
                         color: isSelected
                           ? '#FFFFFF'
                           : item.isCurrentMonth
-                          ? theme.textPrimary
-                          : theme.textMuted,
+                            ? theme.textPrimary
+                            : theme.textMuted,
                         fontWeight: item.isToday || isSelected ? '700' : '500',
                       },
                     ]}
@@ -725,16 +744,6 @@ export default function CalendarScreen() {
                   : `${selectedDayEvents.length} compromisso${selectedDayEvents.length > 1 ? 's' : ''}`}
               </Text>
             </View>
-
-            <TouchableOpacity
-              style={[styles.addEventInlineBtn, { backgroundColor: theme.primaryLight }]}
-              onPress={handleOpenNewEvent}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.addEventInlineBtnText, { color: theme.primary }]}>
-                + Adicionar
-              </Text>
-            </TouchableOpacity>
           </View>
 
           {isLoading ? (
@@ -772,9 +781,9 @@ export default function CalendarScreen() {
               const timeString = item.isAllDay
                 ? 'Dia Inteiro'
                 : start.toLocaleTimeString('pt-BR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  });
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
 
               const isShared = item.scope === RecordScope.SHARED;
               const meetUrl = extractMeetLink(item.location, item.description);
@@ -913,6 +922,50 @@ export default function CalendarScreen() {
                         {item.description}
                       </Text>
                     ) : null}
+
+                    {/* CONVIDADOS / ATTENDEES */}
+                    {item.attendees ? (() => {
+                      let parsedAttendees: Array<{ email: string; displayName?: string; responseStatus?: string }> = [];
+                      try {
+                        const parsed = JSON.parse(item.attendees);
+                        if (Array.isArray(parsed)) parsedAttendees = parsed;
+                      } catch {
+                        parsedAttendees = item.attendees.split(/[,;\n]/).map((e) => ({ email: e.trim() })).filter((e) => e.email.includes('@'));
+                      }
+                      if (parsedAttendees.length === 0) return null;
+                      return (
+                        <View style={styles.attendeesContainer}>
+                          <Text style={[styles.attendeesLabel, { color: theme.textSecondary }]}>
+                            👥 Convidados ({parsedAttendees.length}):
+                          </Text>
+                          <View style={styles.attendeesList}>
+                            {parsedAttendees.map((att, idx) => {
+                              const statusIcon = att.responseStatus === 'accepted' ? '✓' : att.responseStatus === 'declined' ? '✕' : '⏳';
+                              const statusColor = att.responseStatus === 'accepted' ? '#10B981' : att.responseStatus === 'declined' ? '#EF4444' : '#F59E0B';
+                              return (
+                                <View
+                                  key={idx}
+                                  style={[
+                                    styles.attendeeChip,
+                                    {
+                                      backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+                                      borderColor: theme.border,
+                                    },
+                                  ]}
+                                >
+                                  <Text style={[styles.attendeeChipText, { color: theme.textPrimary }]}>
+                                    {att.displayName || att.email}
+                                  </Text>
+                                  <Text style={{ fontSize: 11, color: statusColor, fontWeight: '700' }}>
+                                    {statusIcon}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      );
+                    })() : null}
                   </TouchableOpacity>
 
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -938,6 +991,16 @@ export default function CalendarScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* FAB FLUTUANTE NA ZONA DO POLEGAR (PADRÃO DAS OUTRAS TELAS) */}
+      <TouchableOpacity
+        style={[styles.fabButton, { backgroundColor: theme.primary }, theme.fabShadow]}
+        onPress={handleOpenNewEvent}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.fabIcon}>＋</Text>
+        <Text style={styles.fabText}>Novo Evento</Text>
+      </TouchableOpacity>
 
       {/* MODAL: NOVO EVENTO */}
       <Modal
@@ -1161,21 +1224,63 @@ export default function CalendarScreen() {
                 </View>
               )}
 
-              {/* GOOGLE MEET LINK */}
-              <View style={{ marginTop: 12 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary, marginBottom: 0 }]}>
-                    🎥 Link do Google Meet / Reunião
+              {/* GERAR GOOGLE MEET AUTOMÁTICO */}
+              <View style={[styles.switchRow, { marginTop: 14 }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>
+                    🎥 Gerar sala Google Meet
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => setNewMeetLink('https://meet.google.com/new')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 11, color: theme.primary, fontWeight: '700' }}>
-                      + Gerar Link
-                    </Text>
-                  </TouchableOpacity>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+                    Cria automaticamente uma sala real no Google Calendar
+                  </Text>
                 </View>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleSwitch,
+                    { backgroundColor: newCreateMeetLink ? theme.primary : theme.surfaceSubtle },
+                  ]}
+                  onPress={() => setNewCreateMeetLink(!newCreateMeetLink)}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.toggleKnob,
+                      newCreateMeetLink && { alignSelf: 'flex-end', backgroundColor: '#FFFFFF' },
+                    ]}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* LINK DO MEET MANUAL (SE DESEJAR COLAR OUTRO LINK) */}
+              {!newCreateMeetLink && (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    🎥 Link do Meet / Videochamada (Opcional)
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.surfaceSubtle,
+                        borderColor: theme.border,
+                        color: theme.textPrimary,
+                      },
+                    ]}
+                    placeholder="https://meet.google.com/xyz-abcd-efg"
+                    placeholderTextColor={theme.textMuted}
+                    value={newMeetLink}
+                    onChangeText={setNewMeetLink}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              )}
+
+              {/* CONVIDADOS */}
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  👥 Convidados (e-mails)
+                </Text>
                 <TextInput
                   style={[
                     styles.input,
@@ -1185,13 +1290,17 @@ export default function CalendarScreen() {
                       color: theme.textPrimary,
                     },
                   ]}
-                  placeholder="https://meet.google.com/xyz-abcd-efg"
+                  placeholder="Ex: ana@gmail.com, lucas@empresa.com"
                   placeholderTextColor={theme.textMuted}
-                  value={newMeetLink}
-                  onChangeText={setNewMeetLink}
+                  value={newAttendees}
+                  onChangeText={setNewAttendees}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  keyboardType="email-address"
                 />
+                <Text style={{ fontSize: 11, color: theme.textMuted, marginTop: 4 }}>
+                  Separe múltiplos e-mails por vírgula. Convites oficiais serão enviados se conectado ao Google.
+                </Text>
               </View>
 
               <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
@@ -1520,21 +1629,63 @@ export default function CalendarScreen() {
                 </View>
               )}
 
-              {/* GOOGLE MEET LINK */}
-              <View style={{ marginTop: 12 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <Text style={[styles.inputLabel, { color: theme.textSecondary, marginBottom: 0 }]}>
-                    🎥 Link do Google Meet / Reunião
+              {/* GERAR GOOGLE MEET AUTOMÁTICO */}
+              <View style={[styles.switchRow, { marginTop: 14 }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.switchLabel, { color: theme.textPrimary }]}>
+                    🎥 Gerar sala Google Meet
                   </Text>
-                  <TouchableOpacity
-                    onPress={() => setEditMeetLink('https://meet.google.com/new')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 11, color: theme.primary, fontWeight: '700' }}>
-                      + Gerar Link
-                    </Text>
-                  </TouchableOpacity>
+                  <Text style={{ fontSize: 11, color: theme.textSecondary }}>
+                    Cria automaticamente uma sala real no Google Calendar
+                  </Text>
                 </View>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleSwitch,
+                    { backgroundColor: editCreateMeetLink ? theme.primary : theme.surfaceSubtle },
+                  ]}
+                  onPress={() => setEditCreateMeetLink(!editCreateMeetLink)}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.toggleKnob,
+                      editCreateMeetLink && { alignSelf: 'flex-end', backgroundColor: '#FFFFFF' },
+                    ]}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* LINK DO MEET MANUAL (SE DESEJAR COLAR OUTRO LINK) */}
+              {!editCreateMeetLink && (
+                <View style={{ marginTop: 10 }}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                    🎥 Link do Meet / Videochamada (Opcional)
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.surfaceSubtle,
+                        borderColor: theme.border,
+                        color: theme.textPrimary,
+                      },
+                    ]}
+                    placeholder="https://meet.google.com/xyz-abcd-efg"
+                    placeholderTextColor={theme.textMuted}
+                    value={editMeetLink}
+                    onChangeText={setEditMeetLink}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              )}
+
+              {/* CONVIDADOS */}
+              <View style={{ marginTop: 12 }}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                  👥 Convidados (e-mails)
+                </Text>
                 <TextInput
                   style={[
                     styles.input,
@@ -1544,13 +1695,17 @@ export default function CalendarScreen() {
                       color: theme.textPrimary,
                     },
                   ]}
-                  placeholder="https://meet.google.com/xyz-abcd-efg"
+                  placeholder="Ex: ana@gmail.com, lucas@empresa.com"
                   placeholderTextColor={theme.textMuted}
-                  value={editMeetLink}
-                  onChangeText={setEditMeetLink}
+                  value={editAttendees}
+                  onChangeText={setEditAttendees}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  keyboardType="email-address"
                 />
+                <Text style={{ fontSize: 11, color: theme.textMuted, marginTop: 4 }}>
+                  Separe múltiplos e-mails por vírgula. Convites oficiais serão enviados se conectado ao Google.
+                </Text>
               </View>
 
               <Text style={[styles.inputLabel, { color: theme.textSecondary, marginTop: 12 }]}>
@@ -2058,5 +2213,54 @@ const styles = StyleSheet.create({
   multiDayBadgeText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  fabButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    borderRadius: 26,
+    gap: 8,
+    zIndex: 99,
+  },
+  fabIcon: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  fabText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  attendeesContainer: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  attendeesLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  attendeesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  attendeeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  attendeeChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

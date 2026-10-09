@@ -188,6 +188,7 @@ model CalendarEvent {
   location      String?
   googleEventId String?
   scope         RecordScope @default(SHARED)
+  attendees     String?
 
   userId        String
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)

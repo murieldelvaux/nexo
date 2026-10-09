@@ -240,6 +240,8 @@ export const CreateCalendarEventDtoSchema = z.object({
   isAllDay: z.boolean().default(false),
   location: z.string().optional(),
   scope: z.nativeEnum(RecordScope).default(RecordScope.SHARED),
+  attendees: z.string().optional(), // lista ou JSON de emails/convidados
+  createMeetLink: z.boolean().optional(),
 });
 export type CreateCalendarEventDto = z.infer<typeof CreateCalendarEventDtoSchema>;
 
@@ -256,6 +258,7 @@ export interface CalendarEventDto {
   location: string | null;
   googleEventId: string | null;
   scope: RecordScope;
+  attendees: string | null;
   userId: string;
   householdId: string | null;
   createdAt: string;

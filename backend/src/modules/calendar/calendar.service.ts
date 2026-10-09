@@ -82,18 +82,36 @@ export class CalendarService {
     const isShared = dto.scope === RecordScope.SHARED && !!householdId;
 
     let googleEventId: string | null = null;
+    let finalLocation = dto.location || null;
+    let finalAttendees = dto.attendees || null;
 
     // Se o usuário possui token do Google Calendar configurado, sincroniza com o Google Calendar
     if (user?.googleAccessToken) {
       try {
-        googleEventId = await this.pushToGoogleCalendar(user.googleAccessToken, {
+        const pushRes = await this.pushToGoogleCalendar(user.googleAccessToken, {
           title: dto.title,
           description: dto.description,
           startDate: new Date(dto.startDate),
           endDate: dto.endDate ? new Date(dto.endDate) : undefined,
           isAllDay: dto.isAllDay,
           location: dto.location,
+          attendees: dto.attendees,
+          createMeetLink: dto.createMeetLink,
         });
+
+        if (pushRes.id) {
+          googleEventId = pushRes.id;
+        }
+        if (pushRes.meetLink) {
+          if (!finalLocation) {
+            finalLocation = pushRes.meetLink;
+          } else if (!finalLocation.includes(pushRes.meetLink)) {
+            finalLocation = `${finalLocation} | ${pushRes.meetLink}`;
+          }
+        }
+        if (pushRes.attendees) {
+          finalAttendees = pushRes.attendees;
+        }
       } catch (err: any) {
         this.logger.warn(`Falha ao exportar evento para o Google Agenda: ${err?.message || err}`);
       }
@@ -106,8 +124,9 @@ export class CalendarService {
         startDate: new Date(dto.startDate),
         endDate: dto.endDate ? new Date(dto.endDate) : null,
         isAllDay: !!dto.isAllDay,
-        location: dto.location || null,
+        location: finalLocation,
         scope: isShared ? RecordScope.SHARED : RecordScope.PRIVATE,
+        attendees: finalAttendees,
         userId,
         householdId: isShared ? householdId : null,
         googleEventId,
@@ -126,6 +145,8 @@ export class CalendarService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     let googleEventId = existing.googleEventId;
+    let finalLocation = dto.location !== undefined ? (dto.location || null) : existing.location;
+    let finalAttendees = dto.attendees !== undefined ? (dto.attendees || null) : existing.attendees;
 
     if (user?.googleAccessToken) {
       const eventDetails = {
@@ -135,24 +156,46 @@ export class CalendarService {
         endDate: dto.endDate !== undefined ? (dto.endDate ? new Date(dto.endDate) : undefined) : (existing.endDate || undefined),
         isAllDay: dto.isAllDay !== undefined ? dto.isAllDay : existing.isAllDay,
         location: dto.location !== undefined ? (dto.location || undefined) : (existing.location || undefined),
+        attendees: dto.attendees !== undefined ? (dto.attendees || undefined) : (existing.attendees || undefined),
+        createMeetLink: dto.createMeetLink,
       };
 
       if (googleEventId && !googleEventId.startsWith('dev_event_')) {
         try {
-          await this.updateGoogleCalendarEvent(
+          const updateRes = await this.updateGoogleCalendarEvent(
             user.googleAccessToken,
             googleEventId,
             eventDetails,
           );
+          if (updateRes.meetLink) {
+            if (!finalLocation) {
+              finalLocation = updateRes.meetLink;
+            } else if (!finalLocation.includes(updateRes.meetLink)) {
+              finalLocation = `${finalLocation} | ${updateRes.meetLink}`;
+            }
+          }
+          if (updateRes.attendees) {
+            finalAttendees = updateRes.attendees;
+          }
         } catch (err: any) {
           this.logger.warn(`Falha ao atualizar evento no Google Agenda: ${err?.message || err}`);
         }
       } else {
         // Se ainda não tinha googleEventId no Google Agenda, cria agora
         try {
-          const newGId = await this.pushToGoogleCalendar(user.googleAccessToken, eventDetails);
-          if (newGId) {
-            googleEventId = newGId;
+          const pushRes = await this.pushToGoogleCalendar(user.googleAccessToken, eventDetails);
+          if (pushRes.id) {
+            googleEventId = pushRes.id;
+          }
+          if (pushRes.meetLink) {
+            if (!finalLocation) {
+              finalLocation = pushRes.meetLink;
+            } else if (!finalLocation.includes(pushRes.meetLink)) {
+              finalLocation = `${finalLocation} | ${pushRes.meetLink}`;
+            }
+          }
+          if (pushRes.attendees) {
+            finalAttendees = pushRes.attendees;
           }
         } catch (err: any) {
           this.logger.warn(`Falha ao exportar evento atualizado para Google Agenda: ${err?.message || err}`);
@@ -168,7 +211,8 @@ export class CalendarService {
         ...(dto.startDate && { startDate: new Date(dto.startDate) }),
         ...(dto.endDate !== undefined && { endDate: dto.endDate ? new Date(dto.endDate) : null }),
         ...(dto.isAllDay !== undefined && { isAllDay: dto.isAllDay }),
-        ...(dto.location !== undefined && { location: dto.location }),
+        location: finalLocation,
+        attendees: finalAttendees,
         ...(dto.scope && { scope: dto.scope }),
         ...(googleEventId && { googleEventId }),
       },
@@ -232,6 +276,7 @@ export class CalendarService {
             timeMax,
             singleEvents: true,
             maxResults: 250,
+            conferenceDataVersion: 1, // Exige conferenceData para links do Meet
           },
         },
       );
@@ -267,6 +312,17 @@ export class CalendarService {
           location = `${location} | ${meetLink}`;
         }
 
+        const attendees =
+          item.attendees && Array.isArray(item.attendees) && item.attendees.length > 0
+            ? JSON.stringify(
+                item.attendees.map((att: any) => ({
+                  email: att.email,
+                  displayName: att.displayName || att.email,
+                  responseStatus: att.responseStatus || 'needsAction',
+                })),
+              )
+            : null;
+
         const existing = await this.prisma.calendarEvent.findFirst({
           where: { googleEventId: item.id },
         });
@@ -282,6 +338,7 @@ export class CalendarService {
               isAllDay,
               googleEventId: item.id,
               scope: RecordScope.PRIVATE,
+              attendees,
               userId,
               householdId: null,
             },
@@ -295,6 +352,7 @@ export class CalendarService {
               title: item.summary,
               description: item.description || null,
               location,
+              attendees: attendees || existing.attendees,
               startDate,
               endDate,
               isAllDay,
@@ -314,19 +372,28 @@ export class CalendarService {
       let exportedCount = 0;
       for (const localEv of localEventsWithoutGoogle) {
         try {
-          const gId = await this.pushToGoogleCalendar(user.googleAccessToken, {
+          const pushRes = await this.pushToGoogleCalendar(user.googleAccessToken, {
             title: localEv.title,
             description: localEv.description || undefined,
             startDate: localEv.startDate,
             endDate: localEv.endDate || undefined,
             isAllDay: localEv.isAllDay,
             location: localEv.location || undefined,
+            attendees: localEv.attendees || undefined,
           });
 
-          if (gId) {
+          if (pushRes.id) {
+            let updatedLoc = localEv.location;
+            if (pushRes.meetLink) {
+              updatedLoc = updatedLoc ? `${updatedLoc} | ${pushRes.meetLink}` : pushRes.meetLink;
+            }
             await this.prisma.calendarEvent.update({
               where: { id: localEv.id },
-              data: { googleEventId: gId },
+              data: {
+                googleEventId: pushRes.id,
+                ...(pushRes.meetLink ? { location: updatedLoc } : {}),
+                ...(pushRes.attendees ? { attendees: pushRes.attendees } : {}),
+              },
             });
             exportedCount++;
           }
@@ -384,8 +451,10 @@ export class CalendarService {
       endDate?: Date;
       isAllDay?: boolean;
       location?: string;
+      attendees?: string;
+      createMeetLink?: boolean;
     },
-  ): Promise<string | null> {
+  ): Promise<{ id: string | null; meetLink: string | null; attendees: string | null }> {
     const body: any = {
       summary: eventData.title,
       description: eventData.description || '',
@@ -405,8 +474,50 @@ export class CalendarService {
       body.end = { dateTime: endDate.toISOString() };
     }
 
+    // Se o usuário solicitou link do Meet ou se já indicou Meet no local
+    if (eventData.createMeetLink || (eventData.location && eventData.location.includes('meet.google.com'))) {
+      body.conferenceData = {
+        createRequest: {
+          requestId: `nexo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
+        },
+      };
+    }
+
+    // Convidados
+    let attendeeList: Array<{ email: string; displayName?: string }> = [];
+    if (eventData.attendees) {
+      try {
+        const parsed = JSON.parse(eventData.attendees);
+        if (Array.isArray(parsed)) {
+          attendeeList = parsed
+            .map((a: any) => ({
+              email: typeof a === 'string' ? a.trim() : (a.email?.trim() || ''),
+              displayName: typeof a === 'object' && a.displayName ? a.displayName : undefined,
+            }))
+            .filter((a) => a.email.includes('@'));
+        }
+      } catch {
+        attendeeList = eventData.attendees
+          .split(/[,;\n]/)
+          .map((s) => s.trim())
+          .filter((s) => s.includes('@'))
+          .map((email) => ({ email }));
+      }
+    }
+
+    if (attendeeList.length > 0) {
+      body.attendees = attendeeList;
+    }
+
     if (token.startsWith("dev_token_") || token.startsWith("AIzaSy")) {
-      return "dev_event_" + Date.now();
+      return {
+        id: "dev_event_" + Date.now(),
+        meetLink: eventData.createMeetLink ? `https://meet.google.com/nexo-dev-${Date.now().toString(36)}` : null,
+        attendees: attendeeList.length > 0 ? JSON.stringify(attendeeList) : null,
+      };
     }
 
     const res = await axios.post(
@@ -417,10 +528,36 @@ export class CalendarService {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        params: {
+          conferenceDataVersion: 1,
+          sendUpdates: attendeeList.length > 0 ? 'all' : 'none',
+        },
       },
     );
 
-    return res.data?.id || null;
+    const generatedMeetLink =
+      res.data?.hangoutLink ||
+      res.data?.conferenceData?.entryPoints?.find((ep: any) => ep.entryPointType === 'video')?.uri ||
+      null;
+
+    const savedAttendees =
+      res.data?.attendees && Array.isArray(res.data.attendees)
+        ? JSON.stringify(
+            res.data.attendees.map((a: any) => ({
+              email: a.email,
+              displayName: a.displayName || a.email,
+              responseStatus: a.responseStatus || 'needsAction',
+            })),
+          )
+        : attendeeList.length > 0
+        ? JSON.stringify(attendeeList)
+        : null;
+
+    return {
+      id: res.data?.id || null,
+      meetLink: generatedMeetLink,
+      attendees: savedAttendees,
+    };
   }
 
   private async updateGoogleCalendarEvent(
@@ -433,8 +570,10 @@ export class CalendarService {
       endDate?: Date;
       isAllDay?: boolean;
       location?: string;
+      attendees?: string;
+      createMeetLink?: boolean;
     },
-  ) {
+  ): Promise<{ meetLink: string | null; attendees: string | null }> {
     const body: any = {
       summary: eventData.title,
       description: eventData.description || '',
@@ -454,7 +593,50 @@ export class CalendarService {
       body.end = { dateTime: endDate.toISOString() };
     }
 
-    await axios.put(
+    if (eventData.createMeetLink || (eventData.location && eventData.location.includes('meet.google.com'))) {
+      body.conferenceData = {
+        createRequest: {
+          requestId: `nexo-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          conferenceSolutionKey: {
+            type: 'hangoutsMeet',
+          },
+        },
+      };
+    }
+
+    let attendeeList: Array<{ email: string; displayName?: string }> = [];
+    if (eventData.attendees) {
+      try {
+        const parsed = JSON.parse(eventData.attendees);
+        if (Array.isArray(parsed)) {
+          attendeeList = parsed
+            .map((a: any) => ({
+              email: typeof a === 'string' ? a.trim() : (a.email?.trim() || ''),
+              displayName: typeof a === 'object' && a.displayName ? a.displayName : undefined,
+            }))
+            .filter((a) => a.email.includes('@'));
+        }
+      } catch {
+        attendeeList = eventData.attendees
+          .split(/[,;\n]/)
+          .map((s) => s.trim())
+          .filter((s) => s.includes('@'))
+          .map((email) => ({ email }));
+      }
+    }
+
+    if (attendeeList.length > 0) {
+      body.attendees = attendeeList;
+    }
+
+    if (token.startsWith("dev_token_") || token.startsWith("AIzaSy")) {
+      return {
+        meetLink: eventData.createMeetLink ? `https://meet.google.com/nexo-dev-${Date.now().toString(36)}` : null,
+        attendees: attendeeList.length > 0 ? JSON.stringify(attendeeList) : null,
+      };
+    }
+
+    const res = await axios.put(
       `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
       body,
       {
@@ -462,8 +644,35 @@ export class CalendarService {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        params: {
+          conferenceDataVersion: 1,
+          sendUpdates: attendeeList.length > 0 ? 'all' : 'none',
+        },
       },
     );
+
+    const generatedMeetLink =
+      res.data?.hangoutLink ||
+      res.data?.conferenceData?.entryPoints?.find((ep: any) => ep.entryPointType === 'video')?.uri ||
+      null;
+
+    const savedAttendees =
+      res.data?.attendees && Array.isArray(res.data.attendees)
+        ? JSON.stringify(
+            res.data.attendees.map((a: any) => ({
+              email: a.email,
+              displayName: a.displayName || a.email,
+              responseStatus: a.responseStatus || 'needsAction',
+            })),
+          )
+        : attendeeList.length > 0
+        ? JSON.stringify(attendeeList)
+        : null;
+
+    return {
+      meetLink: generatedMeetLink,
+      attendees: savedAttendees,
+    };
   }
 
   private async deleteGoogleCalendarEvent(token: string, googleEventId: string) {

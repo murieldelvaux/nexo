@@ -96,7 +96,14 @@ export class AiParserService {
     if (!this.genAI) return null;
 
     // Modelos com suporte multimodal de áudio e texto, com fallback transparente
-    const modelsToTry = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+    const modelsToTry = [
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+      "gemini-1.5-flash",
+      "gemini-3.8-flash",
+      "gemini-3.5-flash-lite",
+    ];
 
     for (const modelName of modelsToTry) {
       try {
@@ -137,9 +144,9 @@ Analise a mensagem em português e extraia as informações estruturadas.
 ATENÇÃO: Tenha total tolerância com linguagem falada informal, digitação rápida e erros de transcrição de áudio cotidianos (por exemplo: "gatei" = "gastei", "comprei", "paguei", "deu 15 reais", "fiz as unhas deu 15", etc.):
 
 REGRA DE OURO SOBRE ESCOPO (PRIVADO vs COMPARTILHADO):
-- O escopo OBRIGATÓRIO por padrão é "PRIVATE".
-- SOMENTE classifique como "SHARED" se a mensagem contiver explicitamente palavras como "compartilhado", "compartilhada", "compartilhar", "para nós", "pra nós", "juntos", "do casal", "nossa", "nosso", "da casa".
-- Se nada for dito sobre ser compartilhado, NUNCA presuma que é compartilhado: marque SEMPRE "PRIVATE".
+- Se a mensagem contiver explicitamente palavras como "compartilhado", "compartilhada", "compartilhar", "para nós", "pra nós", "juntos", "do casal", "nossa", "nosso", "da casa", ou se o usuário falar isso no final da frase (ex: "gastei 15 manicure compartilhado", "dentista amanhã 13:10 compartilhado", "comprar leite compartilhado", "almoço 40 compartilhado"):
+  O "scope" É OBRIGATORIAMENTE "SHARED"!
+- Se nenhuma menção de compartilhamento for feita: o "scope" é "PRIVATE".
 
 0. CONSULTAS E VISUALIZAÇÃO (QUERY_CALENDAR, QUERY_TASKS, QUERY_SHOPPING_LIST):
 - Se o usuário pedir para ver ou consultar agenda/compromissos (ex: "minha agenda", "o que tenho hoje?"): QUERY_CALENDAR.
@@ -150,21 +157,21 @@ REGRA DE OURO SOBRE ESCOPO (PRIVADO vs COMPARTILHADO):
 - Se indicar agendamento de compromisso, consulta, dentista, médico, reunião, aniversário ou evento (ex: "Agendar dentista amanhã as 13:10", "Dentista amanhã às 13:10", "Marcar médico amanhã às 14h", "Adicionar dentista amanhã na minha agenda as 13:30", "Reunião sexta às 10h"):
   Classifique OBRIGATORIAMENTE como CREATE_EVENT!
   NÃO exija palavras como "na minha agenda" ou "novo evento". "Agendar dentista amanhã as 13:10" É um CREATE_EVENT!
-- "title": título do compromisso limpo (ex: "Dentista", "Consulta médica", "Reunião"). Remova "agendar", "marcar", horários e datas.
+- "title": título do compromisso limpo (ex: "Dentista", "Consulta médica", "Reunião"). Remova "agendar", "marcar", horários, datas e a palavra "compartilhado" se falada no fim.
 - "startDate": data e hora ISO exata calculada a partir de ${referenceIso} com offset de Brasília (-03:00). Exemplo: para amanhã às 13:10 retorne a data de amanhã com horário 13:10:00-03:00 (NUNCA retorne com Z se alterar o horário).
 - "endDate": data e hora de término ISO (se não informado, 1 hora após startDate).
 - "isAllDay": false se tiver horário, true se dia inteiro.
 - "location": local se mencionado.
-- "scope": PRIVATE por padrão.
+- "scope": defina conforme a REGRA DE OURO SOBRE ESCOPO acima (SHARED se tiver 'compartilhado', senão PRIVATE).
 
 2. GASTOS E DESPESAS (CREATE_EXPENSE):
 - Qualquer gasto ou pagamento realizado (ex: "Gatei 15 reais na manicure", "gastei 15 na manicure", "deu 15 na manicure", "paguei 30 no almoço", "Uber 25", "Farmácia 40"):
   Classifique OBRIGATORIAMENTE como CREATE_EXPENSE!
   Tolerância fonética e coloquial: "gatei", "gastei", "comprei", "paguei", "deu", "custou".
 - "amount": valor numérico gasto (ex: 15).
-- "title": descrição limpa do gasto (ex: "Manicure", "Almoço", "Uber").
+- "title": descrição limpa do gasto (ex: "Manicure", "Almoço", "Uber"). Remova a palavra "compartilhado" se falada no fim.
 - "category": categoria mais adequada (HEALTH para manicure/estética/remédio/médico, RESTAURANT para almoço/jantar, TRANSPORTATION para uber/gasolina, FOOD_MARKET para mercado, etc.).
-- "scope": PRIVATE por padrão.
+- "scope": defina conforme a REGRA DE OURO SOBRE ESCOPO acima (SHARED se tiver 'compartilhado', senão PRIVATE).
 - NUNCA classifique como CREATE_EXPENSE se houver a palavra "meta", "poupar" ou "guardar".
 
 3. LISTA DE COMPRAS (CREATE_SHOPPING_ITEM):
@@ -188,7 +195,18 @@ REGRA DE OURO SOBRE ESCOPO (PRIVADO vs COMPARTILHADO):
 Mensagem: "${messageText}"`;
 
       const parsed = await this.generateWithModelFallback(prompt, now);
-      if (parsed) return parsed;
+      if (parsed) {
+        const lower = messageText.toLowerCase();
+        if (/\b(?:compartilhad[ao]s?|compartilhar|pra nós|para nós|do casal|da casa|juntos)\b/i.test(lower)) {
+          parsed.data.scope = RecordScope.SHARED;
+        }
+        if (parsed.data?.title) {
+          parsed.data.title = parsed.data.title
+            .replace(/\s*\b(?:compartilhad[ao]s?|compartilhar)\b\s*$/i, "")
+            .trim();
+        }
+        return parsed;
+      }
     }
 
     // 2. Fallback Heurístico Robusto (em caso de offline ou falha de rede)
@@ -239,9 +257,9 @@ ATENÇÃO CRÍTICA PARA TRANSCRIÇÃO DE ÁUDIO DE VOZ:
 - Interprete sempre a intenção semântica real do usuário com inteligência contextual!
 
 REGRA DE OURO SOBRE ESCOPO:
-- O escopo DEFAULT OBRIGATÓRIO é "PRIVATE".
-- SOMENTE defina "SHARED" se a legenda ou o áudio contiver expressamente palavras como "compartilhado", "compartilhada", "compartilhar", "para nós", "pra nós", "juntos", "do casal", "nossa", "da casa".
-- Caso contrário, defina SEMPRE "PRIVATE".
+- Se a legenda ou o áudio contiver expressamente palavras como "compartilhado", "compartilhada", "compartilhar", "para nós", "pra nós", "juntos", "do casal", "nossa", "nosso", "da casa", ou se a pessoa falar isso no final da frase (ex: "gastei 15 manicure compartilhado", "dentista amanhã 13:10 compartilhado", "comprar leite compartilhado"):
+  O "scope" É OBRIGATORIAMENTE "SHARED"!
+- Caso contrário, defina "PRIVATE".
 
 DIRETRIZES DE RECONHECIMENTO:
 1. GASTOS E COMPRAS (CREATE_EXPENSE):
@@ -284,7 +302,18 @@ DIRETRIZES DE RECONHECIMENTO:
       ];
 
       const parsed = await this.generateWithModelFallback(promptContent, now);
-      if (parsed) return parsed;
+      if (parsed) {
+        if (caption && /\b(?:compartilhad[ao]s?|compartilhar|pra nós|para nós|do casal|da casa|juntos)\b/i.test(caption)) {
+          parsed.data.scope = RecordScope.SHARED;
+        }
+        if (parsed.data?.title && /\b(?:compartilhad[ao]s?|compartilhar)\b/i.test(parsed.data.title)) {
+          parsed.data.scope = RecordScope.SHARED;
+          parsed.data.title = parsed.data.title
+            .replace(/\s*\b(?:compartilhad[ao]s?|compartilhar)\b\s*/gi, " ")
+            .trim();
+        }
+        return parsed;
+      }
     }
 
     if (caption) {

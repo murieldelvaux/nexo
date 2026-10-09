@@ -123,8 +123,22 @@ export class WhatsappService {
       }
 
       // 4. Executar a ação de domínio com base na intenção
-      // Regra de Ouro: Escopo é PRIVATE por padrão. Só é SHARED se o parser indicar SHARED E o usuário tiver householdId.
-      const isShared = parsed.data.scope === RecordScope.SHARED && !!user.householdId;
+      // Se o item é compartilhado mas o usuário ainda não possui um householdId, cria automaticamente o espaço familiar para ele
+      if (parsed.data.scope === RecordScope.SHARED && !user.householdId) {
+        const hh = await this.prisma.household.create({
+          data: {
+            name: `Espaço de ${user.name ? user.name.split(' ')[0] : 'Casa'}`,
+            inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+          },
+        });
+        await this.prisma.user.update({
+          where: { id: user.id },
+          data: { householdId: hh.id },
+        });
+        user.householdId = hh.id;
+      }
+
+      const isShared = parsed.data.scope === RecordScope.SHARED;
       const scopeLabel = isShared ? '🏠 Compartilhado' : '🔒 Privado (Pessoal)';
       
 
