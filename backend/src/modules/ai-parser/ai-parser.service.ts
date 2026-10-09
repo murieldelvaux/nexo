@@ -69,6 +69,10 @@ export class AiParserService {
             isAllDay: { type: SchemaType.BOOLEAN },
             location: { type: SchemaType.STRING },
             notes: { type: SchemaType.STRING },
+            queryPeriod: {
+              type: SchemaType.STRING,
+              enum: ["today", "tomorrow", "week", "specific_date"],
+            },
             items: {
               type: SchemaType.ARRAY,
               items: {
@@ -149,7 +153,12 @@ REGRA DE OURO SOBRE ESCOPO (PRIVADO vs COMPARTILHADO):
 - Se nenhuma menção de compartilhamento for feita: o "scope" é "PRIVATE".
 
 0. CONSULTAS E VISUALIZAÇÃO (QUERY_CALENDAR, QUERY_TASKS, QUERY_SHOPPING_LIST):
-- Se o usuário pedir para ver ou consultar agenda/compromissos (ex: "minha agenda", "o que tenho hoje?"): QUERY_CALENDAR.
+- Se o usuário pedir para ver ou consultar agenda/compromissos (ex: "minha agenda", "o que tenho hoje?", "agenda de amanhã", "o que tenho amanhã?", "compromissos de amanhã", "minha agenda da semana", "agenda dessa semana", "o que tenho essa semana?", "compromissos da semana", "próximos dias"):
+  Classifique OBRIGATORIAMENTE como QUERY_CALENDAR!
+  Preencha no campo "queryPeriod":
+  - "tomorrow": se perguntar sobre amanhã (ex: "minha agenda de amanhã", "o que tenho amanhã?", "agenda pra amanhã", "compromissos de amanhã").
+  - "week": se perguntar sobre a semana ou próximos dias (ex: "minha agenda da semana", "agenda dessa semana", "o que tenho essa semana?", "compromissos da semana", "próximos dias").
+  - "today": se for para hoje ou se não especificar o período (ex: "minha agenda", "o que tenho hoje?", "agenda de hoje").
 - Se pedir para ver lembretes/tarefas (ex: "meus lembretes", "o que tenho para fazer?"): QUERY_TASKS.
 - Se pedir para ver lista de compras (ex: "minha lista de compras", "o que tem pra comprar?"): QUERY_SHOPPING_LIST.
 
@@ -279,7 +288,11 @@ DIRETRIZES DE RECONHECIMENTO:
      - isAllDay: false se tiver horário, true se dia inteiro.
 
 3. CONSULTAS (QUERY_CALENDAR, QUERY_TASKS, QUERY_SHOPPING_LIST):
-   - Se o áudio perguntar pela agenda, tarefas ou lista de compras.
+   - Se o áudio perguntar pela agenda ou compromissos (ex: "o que tenho amanhã?", "minha agenda", "agenda dessa semana", "compromissos da semana"):
+     - intent: "QUERY_CALENDAR"
+     - queryPeriod: "tomorrow" (se perguntar de amanhã), "week" (se perguntar da semana ou próximos dias), "today" (se hoje ou não especificado).
+   - Se o áudio perguntar por lembretes/tarefas: QUERY_TASKS.
+   - Se o áudio perguntar pela lista de compras: QUERY_SHOPPING_LIST.
 
 4. LISTA DE COMPRAS (CREATE_SHOPPING_ITEM):
    - Se o áudio listar itens para comprar (ex: "comprar leite, queijo e ovos").
@@ -355,35 +368,53 @@ DIRETRIZES DE RECONHECIMENTO:
 
     // -1. CONSULTAS (QUERIES) VIA WHATSAPP
     // A. Consulta de Agenda
-    if (
-      lower.includes("minha agenda") ||
-      lower.includes("agenda de hoje") ||
-      lower.includes("agenda para hoje") ||
-      lower.includes("agenda pra hoje") ||
-      lower.includes("compromissos de hoje") ||
-      lower.includes("compromissos para hoje") ||
-      lower.includes("compromissos pra hoje") ||
-      /^me\s+(?:fale|mostre|diga|passe)\s+(?:a\s+)?agenda/i.test(lower) ||
-      /^o\s+que\s+tenho\s+(?:na\s+agenda|para\s+hoje|pra\s+hoje)/i.test(lower) ||
-      /^quais\s+(?:são\s+)?(?:os\s+)?(?:meus\s+)?compromissos/i.test(lower)
-    ) {
-      if (
-        !lower.includes("colocar") &&
-        !lower.includes("adicionar") &&
-        !lower.includes("agendar") &&
-        !lower.includes("marcar") &&
-        !lower.includes("criar") &&
-        !lower.includes("novo evento")
-      ) {
-        return {
-          intent: AIIntent.QUERY_CALENDAR,
-          confidence: 0.95,
-          data: {
-            title: "Consulta de Agenda",
-            scope,
-          },
-        };
+    const isAgendaQuery =
+      (lower.includes("minha agenda") ||
+        lower.includes("agenda de hoje") ||
+        lower.includes("agenda para hoje") ||
+        lower.includes("agenda pra hoje") ||
+        lower.includes("agenda de amanhã") ||
+        lower.includes("agenda de amanha") ||
+        lower.includes("agenda pra amanhã") ||
+        lower.includes("agenda pra amanha") ||
+        lower.includes("agenda para amanhã") ||
+        lower.includes("agenda para amanha") ||
+        lower.includes("agenda da semana") ||
+        lower.includes("agenda dessa semana") ||
+        lower.includes("agenda desta semana") ||
+        lower.includes("compromissos de hoje") ||
+        lower.includes("compromissos para hoje") ||
+        lower.includes("compromissos de amanhã") ||
+        lower.includes("compromissos de amanha") ||
+        lower.includes("compromissos da semana") ||
+        lower.includes("compromissos dessa semana") ||
+        /^me\s+(?:fale|mostre|diga|passe|mande|envie)\s+(?:a\s+)?agenda/i.test(lower) ||
+        /^o\s+que\s+(?:eu\s+)?tenho\s+(?:na\s+agenda|para\s+hoje|pra\s+hoje|para\s+amanh[aã]|pra\s+amanh[aã]|amanh[aã]|essa\s+semana|esta\s+semana|na\s+semana|nesta\s+semana)/i.test(lower) ||
+        /^quais\s+(?:são\s+)?(?:os\s+)?(?:meus\s+)?compromissos/i.test(lower)) &&
+      !lower.includes("colocar") &&
+      !lower.includes("adicionar") &&
+      !lower.includes("agendar") &&
+      !lower.includes("marcar") &&
+      !lower.includes("criar") &&
+      !lower.includes("novo evento");
+
+    if (isAgendaQuery) {
+      let queryPeriod: "today" | "tomorrow" | "week" | "specific_date" = "today";
+      if (/\b(?:amanh[aã]|de\s+amanh[aã]|pra\s+amanh[aã]|para\s+amanh[aã])\b/i.test(lower)) {
+        queryPeriod = "tomorrow";
+      } else if (/\b(?:semana|dessa\s+semana|desta\s+semana|da\s+semana|esta\s+semana|pr[oó]ximos\s+dias)\b/i.test(lower)) {
+        queryPeriod = "week";
       }
+
+      return {
+        intent: AIIntent.QUERY_CALENDAR,
+        confidence: 0.95,
+        data: {
+          title: "Consulta de Agenda",
+          scope,
+          queryPeriod,
+        },
+      };
     }
 
     // B. Consulta de Lembretes / Tarefas

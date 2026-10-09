@@ -284,5 +284,6 @@ export interface ParsedWhatsAppResultDto {
     endDate?: string;
     isAllDay?: boolean;
     location?: string;
+    queryPeriod?: 'today' | 'tomorrow' | 'week' | 'specific_date';
   };
 }

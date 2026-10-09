@@ -289,10 +289,102 @@ export class WhatsappService {
           `📌 *Lembrete Anotado!*${sourceNotice}\n\n"${task.title}"\n🏷️ ${scopeLabel}${timeNotice}\n\nVocê pode ver sua lista de rotina no app! 📲`,
         );
       } else if (parsed.intent === AIIntent.QUERY_CALENDAR) {
+        let queryPeriod = parsed.data?.queryPeriod || 'today';
+        const rawText = (messageType === 'text' ? message.text?.body || '' : '').toLowerCase();
+        if (/\b(?:amanh[aã]|pra\s+amanh[aã]|para\s+amanh[aã]|de\s+amanh[aã])\b/i.test(rawText)) {
+          queryPeriod = 'tomorrow';
+        } else if (/\b(?:semana|dessa\s+semana|desta\s+semana|da\s+semana|esta\s+semana|pr[oó]ximos\s+dias)\b/i.test(rawText)) {
+          queryPeriod = 'week';
+        }
+
         const now = new Date();
-        const brDateStr = now.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-        const startOfDay = new Date(`${brDateStr}T00:00:00.000-03:00`);
-        const endOfDay = new Date(`${brDateStr}T23:59:59.999-03:00`);
+        const spDateStr = now.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+        const [year, month, day] = spDateStr.split("-").map((v) => parseInt(v, 10));
+
+        let startRange: Date;
+        let endRange: Date;
+        let headerTitle: string;
+        let emptyMessage: string;
+
+        const formatEventLine = (ev: any, showDate = false) => {
+          let datePrefix = '';
+          if (showDate) {
+            const evDay = ev.startDate.toLocaleDateString('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+              day: '2-digit',
+              month: '2-digit',
+            });
+            datePrefix = `[${evDay}] `;
+          }
+
+          const timeStr = ev.isAllDay
+            ? 'Dia inteiro'
+            : ev.startDate.toLocaleTimeString('pt-BR', {
+                timeZone: 'America/Sao_Paulo',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+          let loc = '';
+          if (ev.location) {
+            if (ev.location.includes('meet.google.com')) {
+              loc = ` (🎥 ${ev.location})`;
+            } else {
+              loc = ` (📍 ${ev.location})`;
+            }
+          }
+
+          const scopeTag = ev.scope === RecordScope.SHARED ? ' 🏠' : '';
+          return `• ⏰ *${datePrefix}${timeStr}* - *${ev.title}*${loc}${scopeTag}`;
+        };
+
+        if (queryPeriod === 'tomorrow') {
+          const tomorrowDate = new Date(Date.UTC(year, month - 1, day + 1, 12, 0, 0));
+          const tomorrowStr = tomorrowDate.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+          startRange = new Date(`${tomorrowStr}T00:00:00.000-03:00`);
+          endRange = new Date(`${tomorrowStr}T23:59:59.999-03:00`);
+
+          const tomorrowFormatted = tomorrowDate.toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            weekday: "long",
+            day: "2-digit",
+            month: "2-digit",
+          });
+          const capTomorrow = tomorrowFormatted.charAt(0).toUpperCase() + tomorrowFormatted.slice(1);
+          headerTitle = `📅 *Sua Agenda para Amanhã (${capTomorrow}):*`;
+          emptyMessage = `☕ Você não tem nenhum compromisso agendado para amanhã! Aproveite o dia ou diga *"agendar amanhã às 14h - Reunião"* para marcar algo novo.`;
+        } else if (queryPeriod === 'week') {
+          startRange = new Date(`${spDateStr}T00:00:00.000-03:00`);
+          const weekEndDate = new Date(Date.UTC(year, month - 1, day + 6, 12, 0, 0));
+          const weekEndStr = weekEndDate.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+          endRange = new Date(`${weekEndStr}T23:59:59.999-03:00`);
+
+          const startFormatted = now.toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            day: "2-digit",
+            month: "2-digit",
+          });
+          const endFormatted = weekEndDate.toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            day: "2-digit",
+            month: "2-digit",
+          });
+          headerTitle = `📅 *Sua Agenda para os Próximos 7 Dias (${startFormatted} a ${endFormatted}):*`;
+          emptyMessage = `☕ Você não tem nenhum compromisso agendado para os próximos 7 dias! Tudo livre!`;
+        } else {
+          startRange = new Date(`${spDateStr}T00:00:00.000-03:00`);
+          endRange = new Date(`${spDateStr}T23:59:59.999-03:00`);
+
+          const todayFormatted = now.toLocaleDateString("pt-BR", {
+            timeZone: "America/Sao_Paulo",
+            weekday: "long",
+            day: "2-digit",
+            month: "2-digit",
+          });
+          const capToday = todayFormatted.charAt(0).toUpperCase() + todayFormatted.slice(1);
+          headerTitle = `📅 *Sua Agenda para Hoje (${capToday}):*`;
+          emptyMessage = `☕ Você não tem nenhum compromisso agendado para hoje! Aproveite o dia ou diga *"agendar às 15h - Reunião"* para marcar algo novo.`;
+        }
 
         const events = await this.prisma.calendarEvent.findMany({
           where: {
@@ -300,45 +392,56 @@ export class WhatsappService {
               { userId: user.id },
               ...(user.householdId ? [{ householdId: user.householdId, scope: RecordScope.SHARED }] : []),
             ],
-            startDate: {
-              gte: startOfDay,
-              lte: endOfDay,
-            },
+            AND: [
+              { startDate: { lte: endRange } },
+              {
+                OR: [
+                  { endDate: { gte: startRange } },
+                  { endDate: null, startDate: { gte: startRange } },
+                ],
+              },
+            ],
           },
           orderBy: { startDate: "asc" },
         });
 
-        const todayFormatted = now.toLocaleDateString("pt-BR", {
-          timeZone: "America/Sao_Paulo",
-          weekday: "long",
-          day: "2-digit",
-          month: "2-digit",
-        });
-
         if (events.length === 0) {
-          await this.sendWhatsAppMessage(replyToPhone,
-            `📅 *Sua Agenda para Hoje (${todayFormatted}):*\n\n☕ Você não tem nenhum compromisso agendado para hoje! Aproveite o dia ou diga *"agendar <data> às <hora> - <evento>"* para marcar algo novo.`,
-          );
+          await this.sendWhatsAppMessage(replyToPhone, `${headerTitle}\n\n${emptyMessage}`);
           return;
         }
 
-        const lines = events
-          .map((ev: any) => {
-            const timeStr = ev.isAllDay
-              ? "Dia inteiro"
-              : ev.startDate.toLocaleTimeString("pt-BR", {
-                  timeZone: "America/Sao_Paulo",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
-            const loc = ev.location ? ` (📍 ${ev.location})` : "";
-            const scopeTag = ev.scope === RecordScope.SHARED ? " 🏠" : "";
-            return `• ⏰ *${timeStr}* - *${ev.title}*${loc}${scopeTag}`;
-          })
-          .join("\n");
+        if (queryPeriod === 'week') {
+          const eventsByDay = new Map<string, any[]>();
+          for (const ev of events) {
+            const dayKey = ev.startDate.toLocaleDateString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+              weekday: "long",
+              day: "2-digit",
+              month: "2-digit",
+            });
+            const capDay = dayKey.charAt(0).toUpperCase() + dayKey.slice(1);
+            if (!eventsByDay.has(capDay)) {
+              eventsByDay.set(capDay, []);
+            }
+            eventsByDay.get(capDay)!.push(ev);
+          }
 
-        await this.sendWhatsAppMessage(replyToPhone,
-          `📅 *Sua Agenda para Hoje (${todayFormatted}):*\n\n${lines}\n\n_Total: ${events.length} compromisso(s)._`,
+          let messageBody = `${headerTitle}\n\n`;
+          for (const [dayTitle, dayEvents] of eventsByDay.entries()) {
+            messageBody += `🗓️ *${dayTitle}:*\n`;
+            messageBody += dayEvents.map((ev) => formatEventLine(ev)).join('\n');
+            messageBody += '\n\n';
+          }
+          messageBody += `_Total: ${events.length} compromisso(s) no período._`;
+
+          await this.sendWhatsAppMessage(replyToPhone, messageBody.trim());
+          return;
+        }
+
+        const lines = events.map((ev: any) => formatEventLine(ev)).join("\n");
+        await this.sendWhatsAppMessage(
+          replyToPhone,
+          `${headerTitle}\n\n${lines}\n\n_Total: ${events.length} compromisso(s)._`,
         );
         return;
       } else if (parsed.intent === AIIntent.QUERY_TASKS) {
