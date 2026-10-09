@@ -1080,8 +1080,8 @@ export default function CalendarScreen() {
               </View>
 
               {/* DATAS DE INÍCIO E TÉRMINO */}
-              <View style={styles.timeRow}>
-                <View style={{ flex: 1 }}>
+              <View style={[styles.timeRow, { gap: 12 }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                     Data de Início
                   </Text>
@@ -1099,13 +1099,22 @@ export default function CalendarScreen() {
                       style={{
                         backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
                         color: isDark ? '#F1F5F9' : '#0F172A',
+                        colorScheme: isDark ? 'dark' : 'light',
                         border: `1px solid ${theme.border}`,
                         borderRadius: 12,
                         padding: '10px 12px',
                         fontSize: 14,
+                        fontFamily: 'inherit',
                         outline: 'none',
                         width: '100%',
+                        height: 44,
+                        minWidth: 0,
+                        maxWidth: '100%',
                         boxSizing: 'border-box',
+                        display: 'block',
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        textAlign: 'left',
                       }}
                     />
                   ) : (
@@ -1120,41 +1129,47 @@ export default function CalendarScreen() {
                 </View>
 
                 {newIsMultiDay && (
-                  <>
-                    <View style={{ width: 12 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                        Data de Término
-                      </Text>
-                      {Platform.OS === 'web' ? (
-                        <input
-                          type="date"
-                          value={newEndDateStr}
-                          min={newStartDateStr}
-                          onChange={(e: any) => setNewEndDateStr(e.target.value)}
-                          style={{
-                            backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
-                            color: isDark ? '#F1F5F9' : '#0F172A',
-                            border: `1px solid ${theme.border}`,
-                            borderRadius: 12,
-                            padding: '10px 12px',
-                            fontSize: 14,
-                            outline: 'none',
-                            width: '100%',
-                            boxSizing: 'border-box',
-                          }}
-                        />
-                      ) : (
-                        <TextInput
-                          style={[styles.input, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border, color: theme.textPrimary }]}
-                          value={newEndDateStr}
-                          onChangeText={setNewEndDateStr}
-                          placeholder="AAAA-MM-DD"
-                          placeholderTextColor={theme.textMuted}
-                        />
-                      )}
-                    </View>
-                  </>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                      Data de Término
+                    </Text>
+                    {Platform.OS === 'web' ? (
+                      <input
+                        type="date"
+                        value={newEndDateStr}
+                        min={newStartDateStr}
+                        onChange={(e: any) => setNewEndDateStr(e.target.value)}
+                        style={{
+                          backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                          color: isDark ? '#F1F5F9' : '#0F172A',
+                          colorScheme: isDark ? 'dark' : 'light',
+                          border: `1px solid ${theme.border}`,
+                          borderRadius: 12,
+                          padding: '10px 12px',
+                          fontSize: 14,
+                          fontFamily: 'inherit',
+                          outline: 'none',
+                          width: '100%',
+                          height: 44,
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                          display: 'block',
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          textAlign: 'left',
+                        }}
+                      />
+                    ) : (
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border, color: theme.textPrimary }]}
+                        value={newEndDateStr}
+                        onChangeText={setNewEndDateStr}
+                        placeholder="AAAA-MM-DD"
+                        placeholderTextColor={theme.textMuted}
+                      />
+                    )}
+                  </View>
                 )}
               </View>
 
@@ -1181,8 +1196,8 @@ export default function CalendarScreen() {
               </View>
 
               {!newIsAllDay && (
-                <View style={styles.timeRow}>
-                  <View style={{ flex: 1 }}>
+                <View style={[styles.timeRow, { gap: 12 }]}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Início (HH:MM)</Text>
                     <TextInput
                       style={[
@@ -1201,8 +1216,7 @@ export default function CalendarScreen() {
                       maxLength={5}
                     />
                   </View>
-                  <View style={{ width: 12 }} />
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Término (HH:MM)</Text>
                     <TextInput
                       style={[
@@ -1485,8 +1499,8 @@ export default function CalendarScreen() {
               </View>
 
               {/* DATAS DE INÍCIO E TÉRMINO */}
-              <View style={styles.timeRow}>
-                <View style={{ flex: 1 }}>
+              <View style={[styles.timeRow, { gap: 12 }]}>
+                <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
                     Data de Início
                   </Text>
@@ -1504,13 +1518,22 @@ export default function CalendarScreen() {
                       style={{
                         backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
                         color: isDark ? '#F1F5F9' : '#0F172A',
+                        colorScheme: isDark ? 'dark' : 'light',
                         border: `1px solid ${theme.border}`,
                         borderRadius: 12,
                         padding: '10px 12px',
                         fontSize: 14,
+                        fontFamily: 'inherit',
                         outline: 'none',
                         width: '100%',
+                        height: 44,
+                        minWidth: 0,
+                        maxWidth: '100%',
                         boxSizing: 'border-box',
+                        display: 'block',
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        textAlign: 'left',
                       }}
                     />
                   ) : (
@@ -1525,41 +1548,47 @@ export default function CalendarScreen() {
                 </View>
 
                 {editIsMultiDay && (
-                  <>
-                    <View style={{ width: 12 }} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
-                        Data de Término
-                      </Text>
-                      {Platform.OS === 'web' ? (
-                        <input
-                          type="date"
-                          value={editEndDateStr}
-                          min={editStartDateStr}
-                          onChange={(e: any) => setEditEndDateStr(e.target.value)}
-                          style={{
-                            backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
-                            color: isDark ? '#F1F5F9' : '#0F172A',
-                            border: `1px solid ${theme.border}`,
-                            borderRadius: 12,
-                            padding: '10px 12px',
-                            fontSize: 14,
-                            outline: 'none',
-                            width: '100%',
-                            boxSizing: 'border-box',
-                          }}
-                        />
-                      ) : (
-                        <TextInput
-                          style={[styles.input, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border, color: theme.textPrimary }]}
-                          value={editEndDateStr}
-                          onChangeText={setEditEndDateStr}
-                          placeholder="AAAA-MM-DD"
-                          placeholderTextColor={theme.textMuted}
-                        />
-                      )}
-                    </View>
-                  </>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+                      Data de Término
+                    </Text>
+                    {Platform.OS === 'web' ? (
+                      <input
+                        type="date"
+                        value={editEndDateStr}
+                        min={editStartDateStr}
+                        onChange={(e: any) => setEditEndDateStr(e.target.value)}
+                        style={{
+                          backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+                          color: isDark ? '#F1F5F9' : '#0F172A',
+                          colorScheme: isDark ? 'dark' : 'light',
+                          border: `1px solid ${theme.border}`,
+                          borderRadius: 12,
+                          padding: '10px 12px',
+                          fontSize: 14,
+                          fontFamily: 'inherit',
+                          outline: 'none',
+                          width: '100%',
+                          height: 44,
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                          display: 'block',
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          textAlign: 'left',
+                        }}
+                      />
+                    ) : (
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.surfaceSubtle, borderColor: theme.border, color: theme.textPrimary }]}
+                        value={editEndDateStr}
+                        onChangeText={setEditEndDateStr}
+                        placeholder="AAAA-MM-DD"
+                        placeholderTextColor={theme.textMuted}
+                      />
+                    )}
+                  </View>
                 )}
               </View>
 
@@ -1586,8 +1615,8 @@ export default function CalendarScreen() {
               </View>
 
               {!editIsAllDay && (
-                <View style={styles.timeRow}>
-                  <View style={{ flex: 1 }}>
+                <View style={[styles.timeRow, { gap: 12 }]}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Início (HH:MM)</Text>
                     <TextInput
                       style={[
@@ -1606,8 +1635,7 @@ export default function CalendarScreen() {
                       maxLength={5}
                     />
                   </View>
-                  <View style={{ width: 12 }} />
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Término (HH:MM)</Text>
                     <TextInput
                       style={[
@@ -2135,6 +2163,7 @@ const styles = StyleSheet.create({
   },
   timeRow: {
     flexDirection: 'row',
+    gap: 12,
     marginBottom: 4,
   },
   scopeSelector: {
